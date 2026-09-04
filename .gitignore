@@ -1,14 +1,617 @@
-pom.xml
-pom.xml.asc
-*.jar
+# Combined base ignore file.
+#
+# Patterns shared between languages (*.o, *.a, *.so, ...) are listed once, under
+# the section that owns them, and cross-referenced from the others. Patterns
+# that appear in the upstream github/gitignore templates but are too broad for a
+# file shared across every language are listed at the bottom rather than
+# silently dropped.
+
+# ============================================================================
+# Languages and runtimes
+# ============================================================================
+
+# ---> C / C++
+# This section owns the object, library and executable patterns that the OCaml,
+# Elixir / Erlang and Lua sections also depend on.
+
+# Object and intermediate files
+*.o
+*.ko
+*.obj
+*.elf
+*.slo
+*.lo
+*.su
+
+# Precompiled headers
+*.gch
+*.pch
+
+# Static and shared libraries
+*.a
+*.la
+*.lai
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Linker output
+*.ilk
+*.map
+*.exp
+*.def
+
+# Executables. `a.out` rather than `*.out`, which is far too broad.
+a.out
+*.exe
+*.app
+*.hex
+
+# Debug symbols (*.pdb is listed in the Rust section)
+*.dSYM/
+*.idb
+
+# Linux kernel modules. `*.mod` is omitted, and `.*.cmd` is used in place of
+# `*.cmd`; see the omissions note at the bottom of this file.
+*.mod.c
+.*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+dkms.conf
+
+# ---> Clojure / JVM
 *.class
-/lib/
-/classes/
-/target/
-/checkouts/
+pom.xml.asc
+
+# Jars, except the Gradle wrapper, which is meant to be committed
+*.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+
+# Leiningen
 .lein-deps-sum
 .lein-repl-history
 .lein-plugins/
 .lein-failures
-.nrepl-port
+
+# tools.deps classpath cache
 .cpcache/
+
+# nREPL and shadow-cljs
+.nrepl-port
+.shadow-cljs/
+
+# clj-kondo and clojure-lsp, as driven by the Neovim LSP and lint plugins.
+# The contents form is required rather than `.clj-kondo/`: git does not descend
+# into an excluded directory, so the directory form would make these negations
+# impossible and lock the tracked config files out of the repo.
+# Note this also ignores library configs imported by `clj-kondo --copy-configs`.
+.clj-kondo/*
+!.clj-kondo/config.edn
+.lsp/*
+!.lsp/config.edn
+
+# ---> Elixir / Erlang
+*.beam
+*.ez
+*.plt
+erl_crash.dump
+.eunit
+.rebar/
+ebin/
+/deps/
+/cover/
+/.fetch
+
+# ElixirLS
+.elixir_ls/
+
+# Secrets kept out of config
+/config/*.secret.exs
+
+# (_build/ is listed in the OCaml section)
+
+# ---> Haskell
+# Cabal's v2 build output. Every package and every build product in the
+# project lives under this one directory, so a single entry covers them all.
+dist-newstyle/
+
+# Written by `cabal configure`; machine-specific. cabal.project itself is
+# deliberately not ignored, being tracked project configuration like the
+# .cabal file.
+cabal.project.local
+cabal.project.local~
+
+# Written by `cabal build` when GHC environment files are enabled
+.ghc.environment.*
+
+# Stack
+.stack-work/
+
+# Interface and extended-interface files. *.o and the library artefacts are
+# listed in the C / C++ section; the cabal v1 `dist/` in the Node section.
+*.hi
+*.dyn_hi
+*.dyn_o
+*.hie
+
+# Profiling and hpc coverage output
+*.prof
+*.tix
+.hpc/
+
+# ---> Lua
+luac.out
+*.src.rock
+*.rock
+
+# (object and library artefacts are listed in the C / C++ section)
+
+# ---> Node
+# Dependencies
+node_modules/
+jspm_packages/
+web_modules/
+bower_components/
+.pnpm-store/
+
+# Yarn Plug'n'Play and v2+ state
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Package manager logs. Bare `*.log` is deliberately not used here; see the
+# omissions note at the bottom of this file.
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data
+*.pid
+*.pid.lock
+*.seed
+
+# Coverage. /coverage/ is listed in the Rust section.
+lib-cov
+*.lcov
+.nyc_output
+
+# Tool caches
+.npm
+.eslintcache
+.stylelintcache
+.cache
+.parcel-cache
+.turbo/
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Compiled native addons
+build/Release/
+
+# Build output
+dist/
+.next/
+.nuxt/
+.svelte-kit/
+.astro/
+.docusaurus/
+.vuepress/dist
+.temp/
+
+# Framework and service scratch directories
+.serverless/
+.fusebox/
+.dynamodb/
+.vscode-test/
+
+# REPL history, npm pack output, yarn integrity
+.node_repl_history
+*.tgz
+.yarn-integrity
+
+# .npmrc is deliberately not ignored: the project-level file is a tracked
+# template. Keep auth tokens in ~/.npmrc, never in the committed one.
+
+# ---> OCaml
+*.annot
+*.cmo
+*.cma
+*.cmi
+*.cmx
+*.cmxa
+*.cmxs
+*.cmt
+*.cmti
+
+# dune / ocamlbuild working directory, and local opam switch
+_build/
+_opam/
+
+# Build targets
+*.byte
+*.native
+*.install
+
+# Merlin
+.merlin
+
+# oasis
+setup.data
+setup.log
+
+# ---> Rust
+# Compiled artefacts. The debug and release profiles both live under target/,
+# so this one entry covers them.
+/target
+
+# Backup files generated by rustfmt
+**/*.rs.bk
+
+# MSVC Windows builds of rustc generate these, which store debugging information
+*.pdb
+
+# Cargo.lock is deliberately absent from this list. Commit it for binaries and
+# for workspaces that produce one; ignore it for libraries, where pinning
+# dependencies would hide breakage from downstream users. In a library, add:
+#   /Cargo.lock
+
+# Coverage instrumentation and reports (cargo-llvm-cov, grcov, tarpaulin)
+*.profraw
+*.profdata
+/coverage/
+lcov.info
+tarpaulin-report.html
+cobertura.xml
+
+# Profiling output (cargo-flamegraph, perf)
+perf.data
+perf.data.old
+flamegraph.svg
+
+# ============================================================================
+# Services and data stores
+# ============================================================================
+
+# ---> PostgreSQL
+# psql's history, when HISTFILE puts it in the working directory
+.psql_history
+
+# Credentials
+.pgpass
+
+# Data directories, typically bind-mounted by a compose service
+/pgdata/
+/postgres-data/
+/pg-data/
+
+# Server runtime state
+postmaster.pid
+postmaster.opts
+pg_log/
+pg_wal/
+pg_stat_tmp/
+
+# Dumps and backups. Note *.sql is NOT ignored: migrations belong in the repo.
+*.dump
+*.backup
+
+# ============================================================================
+# Operating systems
+# ============================================================================
+
+# ---> Linux
+*~
+
+# Temporary file created when a still-open file is deleted
+.fuse_hidden*
+
+# KDE directory preferences
+.directory
+
+# Trash folder appearing on removable media
+.Trash-*
+
+# Created when an open file is removed but is still referenced
+.nfs*
+
+# ---> macOS
+.DS_Store
+.localized
+__MACOSX/
+.AppleDouble
+.LSOverride
+
+# Resource forks
+._*
+
+# Files and directories that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# ---> Windows
+# Thumbnail cache files
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+
+# Dump file
+*.stackdump
+
+# Folder config file
+[Dd]esktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Installer files
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# Shortcuts
+*.lnk
+
+# ============================================================================
+# Editors and IDEs
+# ============================================================================
+
+# ---> Eclipse
+.metadata/
+.settings/
+.classpath
+.loadpath
+.recommenders/
+local.properties
+*.bak
+*.tmp
+
+# Launch configurations and external tool builders
+*.launch
+.externalToolBuilders/
+
+# Annotation processing
+.apt_generated/
+.apt_generated_test/
+.factorypath
+
+# Plugin-specific project files
+# .cproject (CDT), .autotools (CDT autotools), .buildpath (PDT),
+# .pydevproject (PyDev), .tern-project, .texlipse, .springBeans (STS),
+# .target (sbteclipse)
+.cproject
+.autotools
+.buildpath
+.pydevproject
+.tern-project
+.texlipse
+.springBeans
+.target
+.scala_dependencies
+.worksheet
+
+# .project is deliberately not ignored; some teams commit it. If yours does not:
+# .project
+
+# ---> Emacs
+# Byte-compiled and native-compiled lisp
+*.elc
+eln-cache/
+
+# Auto-save and lock files. The leading # must be escaped, or git reads the
+# whole line as a comment.
+\#*\#
+.\#*
+auto-save-list
+tramp
+
+# Backup files (foo~) are listed in the Linux section.
+
+# Flycheck and flymake scratch files
+flycheck_*.el
+*_flymake.*
+
+# Package directories
+/elpa/
+.cask/
+
+# Org-mode
+.org-id-locations
+*_archive
+
+# AUCTeX and RefTeX
+/auto/
+*.rel
+
+# Session, eshell and server state
+/.emacs.desktop
+/.emacs.desktop.lock
+/eshell/history
+/eshell/lastdir
+/server/
+/network-security.data
+
+# projectile
+.projectile
+
+# .dir-locals.el is deliberately not ignored: like .editorconfig, it is
+# project-level editor configuration worth committing.
+
+# ---> Helix
+# Helix keeps its state in ~/.cache/helix, so there is nothing project-local to
+# ignore. .helix/config.toml and .helix/languages.toml are tracked project
+# settings. Recorded here so the absence is a decision, not an oversight.
+
+# ---> JetBrains (IntelliJ, CLion, RustRover, ...)
+.idea/
+.idea_modules/
+*.iml
+*.ipr
+*.iws
+
+# Plugin-generated
+atlassian-ide-plugin.xml
+fabric.properties
+
+# ---> Obsidian
+.obsidian/
+
+# ---> Visual Studio
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Cache and options directory
+.vs/
+
+# Build intermediates not already covered by the C / C++ section
+*.iobj
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp_proj
+*.tlog
+*.vspscc
+*.vssscc
+*.pidb
+*.svclog
+*.scc
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# NuGet
+*.nupkg
+*.snupkg
+
+# ---> Visual Studio Code
+# Ignore the per-machine noise but keep the files worth sharing with the project.
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Local History extension
+.history/
+
+# Packaged extensions
+*.vsix
+
+# ---> Other editors and tools
+# Vim
+*.swp
+*.swo
+
+# ctags / etags. Anchored: unanchored `tags` would also match a `tags/` module.
+/tags
+/TAGS
+
+# direnv's cache. .envrc itself stays tracked.
+.direnv/
+
+# Patch and merge-conflict artefacts
+*.orig
+*.rej
+
+# ---> AI coding agents
+# The tracked/ignored split matters here: instruction files are project
+# documentation and belong in the repo, while per-machine settings, session
+# state and chat history do not. Only the latter are listed.
+
+# Claude Code. CLAUDE.md stays tracked as project documentation; the whole
+# .claude/ directory is treated as machine-local, so settings, commands,
+# session ids and scratch state are all ignored together.
+CLAUDE.local.md
+.claude/
+
+# Codex and other AGENTS.md-based agents. AGENTS.md itself stays tracked.
+AGENTS.local.md
+.codex/
+
+# aider chat history and repo map cache
+.aider*
+
+# Continue, Gemini CLI, and generic agent scratch directories
+.continue/
+.gemini/
+.agent/
+
+# ChatGPT has no standard project-level artefact; anything it writes is
+# ad hoc, so add project-specific patterns here as they appear.
+
+# ---> Environment
+# Local secrets and machine-specific configuration. Templates stay tracked so
+# the required variables remain documented; the filled-in files never do.
+.env
+.env.*
+!.env.example
+!.env.template
+
+# ---> Deliberately omitted
+# The following appear in the upstream github/gitignore templates but are too
+# broad for a file shared across every language. Add them to an individual
+# project's .gitignore where that project actually needs them.
+#
+#   [Bb]in/ [Oo]bj/ [Dd]ebug/ [Rr]elease/ x64/ x86/
+#       Visual Studio build directories. `bin/` in particular is commonly a
+#       tracked directory of project scripts.
+#   out/            JetBrains output directory; also a common tracked name.
+#   /lib/ /classes/ Clojure. `lib/` is tracked in most C and C++ projects.
+#   /doc/           Elixir generated docs; `doc/` is often handwritten.
+#   *.d             C dependency files, but also every D language source file.
+#   *.mod           Linux kernel module lists, but also go.mod, which every Go
+#                   project tracks. No narrower form exists, because the
+#                   kernel's own .mod files are plainly named.
+#   *.cmd           Linux kernel build command files, but also every Windows
+#                   batch script anywhere in the tree. The kernel's are
+#                   dot-prefixed, so `.*.cmd` in the kernel section above keeps
+#                   them without the collision.
+#   *.out           Covered more precisely by `a.out` above.
+#   *.zip *.tar.gz  luarocks artefacts; catches legitimate test fixtures.
+#   *.log           Catches intentionally committed log fixtures.
+#   bin/ tmp/       Eclipse scratch directories; both are commonly tracked.
+#   public          Gatsby build output, but the standard name for tracked
+#                   static assets in nearly every other web framework.
+#   logs coverage   Node, in bare unanchored form; both match tracked
+#                   directories elsewhere. Anchored /coverage/ is used instead.
