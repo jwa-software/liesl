@@ -1,54 +1,31 @@
-{:paths ["src" "resources"]
+{;; resources is on the classpath so migratus can find the migrations there.
+ ;; test is not -- it belongs to the :test alias.
+ :paths ["src" "resources"]
 
- ;; Kept small on purpose: a library lands here when something actually
- ;; needs it. On Clojure 1.12 and later, clojure.repl.deps/sync-deps
- ;; pulls a newly added dependency into an already-running REPL, so
- ;; growing this map costs no restart -- which is why the version floor
- ;; matters and is not just "the latest".
- ;;
- ;; The database is a runtime concern rather than a build-time one. A
- ;; fresh clone has no database at all, so the tool creates and migrates
- ;; its own on first run instead of asking for a setup step; that puts
- ;; both the driver and the migration library here rather than behind a
- ;; development alias. migratus carries next.jdbc transitively, which is
- ;; deliberately not restated here until our own code requires it
- ;; directly.
+ ;; Runtime, not tooling: a fresh clone migrates its own database on first run.
  :deps {org.clojure/clojure {:mvn/version "1.12.6"}
         org.xerial/sqlite-jdbc {:mvn/version "3.53.4.0"}
+        com.github.seancorfield/next.jdbc {:mvn/version "1.3.1118"}
         migratus/migratus {:mvn/version "1.6.7"}}
 
  :aliases
- {;; Development REPL, long-lived: start it once and leave it running.
-  ;; nREPL writes the chosen port to .nrepl-port (git-ignored) and picks
-  ;; a free one rather than a fixed number, so several projects can hold
-  ;; REPLs open at the same time. Editors locate the server by reading
-  ;; that file, so it is the handshake, not a log artifact -- a crash
-  ;; leaves it behind pointing at a dead port.
-  ;;
-  ;; cider-nrepl is not the optional extra it appears to be. A bare nREPL
-  ;; evaluates forms perfectly well, but symbol completion is implemented
-  ;; entirely by these middlewares, and the pretty-printer that clients
-  ;; request by default is cider.nrepl.pprint/pprint. Both fail quietly
-  ;; when the middleware is absent: no error, just no completion and
-  ;; unformatted output.
+ {;; clj -M:nrepl  start the long-lived REPL; leave it running
+  ;; nREPL picks a free port and writes it to .nrepl-port, which is how the
+  ;; editor finds it. cider-nrepl looks optional and is not: completion and
+  ;; the default pretty-printer live there, and both fail silently without it.
   :nrepl
   {:extra-deps {nrepl/nrepl {:mvn/version "1.7.0"}
                 cider/cider-nrepl {:mvn/version "0.62.2"}}
    :main-opts ["-m" "nrepl.cmdline"
                "--middleware" "[cider.nrepl/cider-middleware]"]}
 
-  ;; Data inspector, meant to be stacked onto the REPL: clj -M:nrepl:portal
-  ;; Classpath only, deliberately no :main-opts, so :nrepl stays in charge
-  ;; of the process when both aliases are given. Open it from the REPL:
+  ;; clj -M:nrepl:portal  the same REPL with the data inspector added
+  ;; No :main-opts here, so :nrepl keeps the process. Open it with:
   ;;   (require '[portal.api :as p]) (add-tap #'p/submit) (p/open)
-  ;; then inspect with tap>. A parsed message or a page of search hits is
-  ;; far past what an inline evaluation result can show.
   :portal
   {:extra-deps {djblue/portal {:mvn/version "0.67.2"}}}
 
-  ;; clj -X:test
-  ;; Both entry points are declared because the runner supports both: -X
-  ;; passes a map of options to :exec-fn, -M runs it as a main.
+  ;; clj -X:test. Both entry points declared because the runner supports both.
   :test
   {:extra-paths ["test"]
    :extra-deps {io.github.cognitect-labs/test-runner
@@ -56,26 +33,9 @@
    :main-opts ["-m" "cognitect.test-runner"]
    :exec-fn cognitect.test-runner.api/test}
 
-  ;; clj -X:migrate                             apply pending migrations
-  ;; clj -X:migrate migratus.core/rollback      undo the most recent one
-  ;; clj -X:migrate migratus.core/pending-list  show what has not run
-  ;;
-  ;; -X takes a function name after the alias, which overrides :exec-fn,
-  ;; so one alias covers every migratus entry point that accepts the
-  ;; config map as its only argument.
-  ;;
-  ;; Migrations are tracked per migration, each by its own timestamped
-  ;; id, rather than by one global version number. That matters because
-  ;; migrations arrive through branches and pull requests, not in a
-  ;; single sequence -- two people can both write "the fourth migration"
-  ;; and a single counter cannot represent that.
-  ;;
-  ;; :migration-dir is resolved on the classpath, hence resources/ in
-  ;; :paths above. The database file sits at the project root and is
-  ;; git-ignored: it holds fetched data, which is rebuilt by fetching,
-  ;; never committed.
-  :migrate
-  {:exec-fn migratus.core/migrate
-   :exec-args {:store :database
-               :migration-dir "migrations"
-               :db {:dbtype "sqlite" :dbname "liesl.db"}}}}}
+  ;; clj -X:migrate       apply every pending migration
+  ;; clj -X:rollback      undo the most recently applied one
+  ;; clj -X:pending-list  print the migrations that have not run
+  :migrate      {:exec-fn liesl.db/migrate}
+  :rollback     {:exec-fn liesl.db/rollback}
+  :pending-list {:exec-fn liesl.db/pending-list}}}
