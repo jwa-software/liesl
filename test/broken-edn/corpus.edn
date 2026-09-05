@@ -1,0 +1,6 @@
+;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
+;; Fixture: deliberately unparseable. The closing brace is missing.
+
+{:corpus "broken-edn"
+ :fetch {:delay-ms 1000}
+ :sources []

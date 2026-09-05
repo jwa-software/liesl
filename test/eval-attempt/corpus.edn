@@ -1,0 +1,9 @@
+;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
+;; Fixture: valid in every way except the #= reader, which asks the reader to
+;; evaluate code. clojure.edn has no such reader; clojure.core/read-string does.
+;; If this file ever loads successfully, the loader has been switched to the
+;; unsafe reader and a corpus package can run arbitrary code.
+
+{:corpus "eval-attempt"
+ :fetch {:delay-ms #=(+ 1 1)}
+ :sources []}

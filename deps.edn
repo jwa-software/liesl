@@ -1,6 +1,8 @@
-{;; resources is on the classpath so migratus can find the migrations there.
- ;; test is not -- it belongs to the :test alias.
- :paths ["src" "resources"]
+;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
+
+{;; resources and corpora are on the classpath so migratus and the corpus
+ ;; loader can find their files. test is not -- it belongs to the :test alias.
+ :paths ["src" "resources" "corpora"]
 
  ;; Runtime, not tooling: a fresh clone migrates its own database on first run.
  :deps {org.clojure/clojure {:mvn/version "1.12.6"}

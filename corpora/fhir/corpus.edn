@@ -1,0 +1,29 @@
+;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
+
+{:corpus "fhir"
+
+ ;; Fetch policy for this corpus. :delay-ms is the pause between two
+ ;; consecutive requests, which keeps a full crawl courteous to hl7.org.
+ :fetch {:delay-ms 1000}
+
+ ;; Oldest first. Version order lives here because the strings do not sort:
+ ;; alphabetically STU3 comes last, and it is the oldest of the four.
+ :versions ["STU3" "R4" "R4B" "R5"]
+
+ :sources
+ [{:name     "spec"
+   :kind     "spec"
+   :base-url "https://hl7.org/fhir/"
+   ;; A published version never changes, so once fetched its next_fetch moves
+   ;; years out; only the current version is worth revisiting.
+   :config   {:version-path "{version}/"}}
+
+  {:name     "repo"
+   :kind     "source"
+   :base-url "https://github.com/HL7/fhir.git"
+   ;; Cloned, not crawled. Around 800 MB, hence shallow.
+   :config   {:clone :shallow}}]}
+
+;; Deliberately absent: chat.fhir.org. The realm has web-public access enabled,
+;; so the content is readable without an account, but an anonymous API read is
+;; refused -- Zulip serves spectators through a browser session.
