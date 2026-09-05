@@ -1,0 +1,6 @@
+;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
+;; Fixture: the definition is fine, the source inside it is not -- no :base-url.
+
+{:corpus "bad-source"
+ :fetch {:delay-ms 1000}
+ :sources [{:name "spec" :kind "spec"}]}
