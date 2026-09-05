@@ -1,0 +1,47 @@
+{:paths ["src" "resources"]
+
+ ;; Kept minimal on purpose: a library lands here when a namespace
+ ;; actually requires it. On Clojure 1.12 and later,
+ ;; clojure.repl.deps/sync-deps pulls a newly added dependency into an
+ ;; already-running REPL, so growing this map costs no restart -- which
+ ;; is why the version floor matters and is not just "the latest".
+ :deps {org.clojure/clojure {:mvn/version "1.12.6"}}
+
+ :aliases
+ {;; Development REPL, long-lived: start it once and leave it running.
+  ;; nREPL writes the chosen port to .nrepl-port (git-ignored) and picks
+  ;; a free one rather than a fixed number, so several projects can hold
+  ;; REPLs open at the same time. Editors locate the server by reading
+  ;; that file, so it is the handshake, not a log artifact -- a crash
+  ;; leaves it behind pointing at a dead port.
+  ;;
+  ;; cider-nrepl is not the optional extra it appears to be. A bare nREPL
+  ;; evaluates forms perfectly well, but symbol completion is implemented
+  ;; entirely by these middlewares, and the pretty-printer that clients
+  ;; request by default is cider.nrepl.pprint/pprint. Both fail quietly
+  ;; when the middleware is absent: no error, just no completion and
+  ;; unformatted output.
+  :nrepl
+  {:extra-deps {nrepl/nrepl {:mvn/version "1.7.0"}
+                cider/cider-nrepl {:mvn/version "0.62.2"}}
+   :main-opts ["-m" "nrepl.cmdline"
+               "--middleware" "[cider.nrepl/cider-middleware]"]}
+
+  ;; Data inspector, meant to be stacked onto the REPL: clj -M:nrepl:portal
+  ;; Classpath only, deliberately no :main-opts, so :nrepl stays in charge
+  ;; of the process when both aliases are given. Open it from the REPL:
+  ;;   (require '[portal.api :as p]) (add-tap #'p/submit) (p/open)
+  ;; then inspect with tap>. A parsed message or a page of search hits is
+  ;; far past what an inline evaluation result can show.
+  :portal
+  {:extra-deps {djblue/portal {:mvn/version "0.67.2"}}}
+
+  ;; clj -X:test
+  ;; Both entry points are declared because the runner supports both: -X
+  ;; passes a map of options to :exec-fn, -M runs it as a main.
+  :test
+  {:extra-paths ["test"]
+   :extra-deps {io.github.cognitect-labs/test-runner
+                {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+   :main-opts ["-m" "cognitect.test-runner"]
+   :exec-fn cognitect.test-runner.api/test}}}
