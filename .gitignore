@@ -310,6 +310,18 @@ pg_stat_tmp/
 *.dump
 *.backup
 
+# ---> SQLite
+# The local document store. It holds fetched content, is rebuilt by fetching
+# again, and is never committed -- the repository carries the code and the
+# schema that produce it, not the data. WAL mode keeps two sidecar files
+# beside the database, and both are equally transient.
+*.db
+*.db-wal
+*.db-shm
+
+# The rollback journal, used when a connection is not in WAL mode.
+*.db-journal
+
 # ============================================================================
 # Operating systems
 # ============================================================================
