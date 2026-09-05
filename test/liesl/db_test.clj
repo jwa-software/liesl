@@ -1,3 +1,5 @@
+;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
+
 (ns liesl.db-test
   "These tests guard decisions, not SQLite's own behaviour. Each one fails if
   something we chose is quietly undone: the pragma that makes foreign keys

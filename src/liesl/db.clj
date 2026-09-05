@@ -1,3 +1,5 @@
+;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
+
 (ns liesl.db
   "The one place that knows where the database is and how a connection to it
   must be configured.
