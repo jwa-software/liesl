@@ -1,0 +1,6 @@
+;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
+;; Fixture: :corpus disagrees with the directory it sits in.
+
+{:corpus "wrong-name"
+ :fetch {:delay-ms 1000}
+ :sources []}
