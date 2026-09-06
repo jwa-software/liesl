@@ -44,8 +44,6 @@
                 :let   [target (io/file (str file suffix))]]
           (io/delete-file target silently))))))
 
-(use-fixtures :each with-temp-db)
-
 (defn- respond!
   "Ask handler-fn for [status body headers] and send it back. The exchange is
   one HTTP interaction, holding both the request to read and the response to
@@ -80,7 +78,7 @@
       (f (str "http://" loopback ":" (-> server .getAddress .getPort) "/page"))
       (finally (.stop server no-wait)))))
 
-(defn- get-fetch-state [url]
+(defn- get-fetch-state! [url]
   (with-open [conn (db/get-connection *db-spec*)]
     (jdbc/execute-one! conn
                        ["SELECT * FROM fetch_state WHERE url = ?" url]
@@ -91,12 +89,14 @@
   (with-open [conn (db/get-connection *db-spec*)]
     (fetch/fetch-url! conn (merge {:url url :source-id *source-id*} opts))))
 
+(use-fixtures :each with-temp-db)
+
 (deftest a-first-fetch-returns-the-body-and-records-the-validators
   (with-server
     (fn [_] [200 "hello" {"ETag" "\"v1\"" "Last-Modified" "Wed, 01 Jan 2025 00:00:00 GMT"}])
     (fn [url]
       (is (= {:status 200 :body "hello"} (fetch! url)))
-      (let [state (get-fetch-state url)]
+      (let [state (get-fetch-state! url)]
         (is (= "\"v1\""                        (:etag          state)))
         (is (= "Wed, 01 Jan 2025 00:00:00 GMT" (:last_modified state)))
         (is (= 0                               (:failures      state)))
@@ -115,7 +115,7 @@
         (is (= {:status 200 :body "hello"} (fetch! url)) "the first fetch has no validator to send, so the body comes back")
         (is (= {:status 304}               (fetch! url)) "an unchanged page returns no body")
         ;; Bound after the fetches: before them there is no row to read.
-        (let [state (get-fetch-state url)
+        (let [state (get-fetch-state! url)
               etag  (:etag state)]
           (is (= [nil "\"v1\""] @seen) "the first request carries no validator, the second carries the etag")
           (is (= "\"v1\""       etag)  "a 304 must not erase the etag it was answered with"))))))
@@ -138,8 +138,8 @@
     (fn [_] [404 "gone" {}])
     (fn [url]
       (is (= {:status 404} (fetch! url))                      "an HTTP status is a result, not an exception")
-      (is (= 1             (:failures (get-fetch-state url))) "a 4xx increments the failure count, so a caller can back off")
-      (is (= 404           (:status (get-fetch-state url)))   "the status is kept as it came back, not flattened to a flag"))))
+      (is (= 1             (:failures (get-fetch-state! url))) "a 4xx increments the failure count, so a caller can back off")
+      (is (= 404           (:status (get-fetch-state! url)))   "the status is kept as it came back, not flattened to a flag"))))
 
 (deftest the-delay-is-waited-out-before-the-request
   (with-server
