@@ -43,8 +43,6 @@
         (doseq [suffix ["" "-wal" "-shm"]]
           (io/delete-file (io/file (str file suffix)) silently))))))
 
-(use-fixtures :each with-temp-db)
-
 (defn- table-names
   "User tables as a set of names -- SQLite's own sqlite_* tables excluded, and
   a set because table order is arbitrary."
@@ -54,6 +52,8 @@
         (query! conn
                 (str "SELECT name FROM sqlite_master "
                      "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"))))
+
+(use-fixtures :each with-temp-db)
 
 (deftest migration-creates-every-table
   (with-open [conn (db/get-connection *db-spec*)]

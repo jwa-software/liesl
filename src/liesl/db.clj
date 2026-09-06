@@ -35,6 +35,12 @@
       (throw (ex-info "Not a tools.deps project root" {:dir (str dir)})))
     dir))
 
+(defn- set-wal!
+  "Switch the database to WAL mode."
+  [spec]
+  (with-open [conn (jdbc/get-connection spec)]
+    (jdbc/execute-one! conn ["PRAGMA journal_mode = WAL"])))
+
 (defn default-db-file
   "Where the database lives when nothing says otherwise.
 
@@ -55,12 +61,6 @@
   (^java.sql.Connection [] (get-connection (db-spec)))
   (^java.sql.Connection [spec]
    (doto (jdbc/get-connection spec) (jdbc/execute-one! ["PRAGMA foreign_keys = ON"]))))
-
-(defn- set-wal!
-  "Switch the database to WAL mode."
-  [spec]
-  (with-open [conn (jdbc/get-connection spec)]
-    (jdbc/execute-one! conn ["PRAGMA journal_mode = WAL"])))
 
 (defn migration-config
   "Migratus configuration. The database location is defined once, here, rather

@@ -1,12 +1,15 @@
 ;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
 
 (ns liesl.corpus
-  "Reads a corpus definition. The engine's only knowledge of a domain."
+  "Reads a corpus definition and records its sources. The engine's only
+  knowledge of a domain."
   ;; clojure.core is referred into every namespace automatically, so its `load`
   ;; would collide with ours. :exclude leaves that one name out.
   (:refer-clojure :exclude [load])
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]))
+  (:require [clojure.edn          :as edn]
+            [clojure.java.io      :as io]
+            [next.jdbc            :as jdbc]
+            [next.jdbc.result-set :as rs]))
 
 (def ^:private required-top-level-keys #{:corpus :fetch :sources})
 (def ^:private required-fetch-keys     #{:delay-ms})
@@ -21,6 +24,15 @@
                       (assoc where
                              :missing-keys (vec (sort missing-keys))
                              :found-keys   (vec (sort (keys m)))))))))
+
+(defn- pr-config
+  "A source's :config as EDN text for the source.config column. Read it back
+  with clojure.edn/read-string."
+  [config]
+  (binding [*print-length* nil
+            *print-level*  nil]
+    (pr-str config)))
+
 (defn load
   "Read corpora/<corpus-name>/corpus.edn from the classpath."
   [corpus-name]
@@ -45,3 +57,21 @@
                     "Corpus source"
                     (assoc where :source source)))
       parsed)))
+
+(defn upsert-sources!
+  "One source row per entry, upserted on (corpus, name) so ids survive a
+  re-run. Returns the rows in definition order."
+  [conn {:keys [corpus sources]}]
+  (mapv (fn [source]
+          (jdbc/execute-one!
+           conn
+           [(str "INSERT INTO source (corpus, name, kind, base_url, config) "
+                 "  VALUES (?, ?, ?, ?, ?) "
+                 "ON CONFLICT (corpus, name) DO UPDATE SET "
+                 "  kind     = excluded.kind, "
+                 "  base_url = excluded.base_url, "
+                 "  config   = excluded.config "
+                 "RETURNING id, corpus, name, kind, base_url, config")
+            corpus (:name source) (:kind source) (:base-url source) (some-> (:config source) pr-config)]
+           {:builder-fn rs/as-unqualified-lower-maps}))
+        sources))
