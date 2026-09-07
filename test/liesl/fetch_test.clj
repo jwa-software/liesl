@@ -10,8 +10,10 @@
             [next.jdbc            :as jdbc]
             [next.jdbc.result-set :as rs]
             [clojure.test         :refer [deftest is use-fixtures]])
-  (:import [com.sun.net.httpserver HttpServer HttpHandler]
-           [java.net               InetSocketAddress]))
+  (:import [com.sun.net.httpserver   HttpServer HttpHandler]
+           [java.net                 InetSocketAddress]
+           [java.nio.file            Files]
+           [java.nio.file.attribute  FileAttribute]))
 
 (def ^:private ^:dynamic *db-spec*   nil)
 (def ^:private ^:dynamic *source-id* nil)
@@ -87,7 +89,19 @@
 (defn- fetch!
   [url & {:as opts}]
   (with-open [conn (db/get-connection *db-spec*)]
-    (fetch/fetch-url! conn (merge {:url url :source-id *source-id*} opts))))
+    (fetch/fetch-url! conn (merge {:url url :source-id *source-id* :as :string} opts))))
+
+(defn- with-temp-dir
+  "A fresh directory for downloads, removed with its contents afterwards."
+  [f]
+  (let [dir      (.toFile (Files/createTempDirectory "liesl-fetch-test-" (make-array FileAttribute 0)))
+        silently true]
+    (try
+      (f dir)
+      (finally
+        ;; file-seq lists a directory before its contents; reversed, children go first.
+        (doseq [file (reverse (file-seq dir))]
+          (io/delete-file file silently))))))
 
 (use-fixtures :each with-temp-db)
 
@@ -140,6 +154,50 @@
       (is (= {:status 404} (fetch! url))                      "an HTTP status is a result, not an exception")
       (is (= 1             (:failures (get-fetch-state! url))) "a 4xx increments the failure count, so a caller can back off")
       (is (= 404           (:status (get-fetch-state! url)))   "the status is kept as it came back, not flattened to a flag"))))
+
+(deftest a-download-lands-in-the-file-and-is-hashed
+  (with-temp-dir
+    (fn [dir]
+      (with-server
+        (fn [_] [200 "archive bytes" {}])
+        (fn [url]
+          (let [target (io/file dir "archive.bin")]
+            (is (= {:status 200 :file target} (fetch! url :as :file :opts {:file target})) "the result names the file instead of carrying the body")
+            (is (= "archive bytes" (slurp target))                         "the body went to the file")
+            (is (some? (:content_hash (get-fetch-state! url)))             "the file must be hashed")
+            (is (= ["archive.bin"] (vec (.list dir)))                      "no temp file is left beside it")))))))
+
+(deftest a-304-leaves-the-previous-download-intact
+  (with-temp-dir
+    (fn [dir]
+      (with-server
+        (fn [exchange]
+          (if (.getFirst (.getRequestHeaders exchange) "If-None-Match")
+            [304 nil {}]
+            [200 "first body" {"ETag" "\"v1\""}]))
+        (fn [url]
+          (let [target (io/file dir "archive.bin")]
+            (fetch! url :as :file :opts {:file target})
+            (is (= {:status 304} (fetch! url :as :file :opts {:file target})) "the second fetch carries the etag and gets no body")
+            (is (= "first body" (slurp target))                 "a 304 has no body, so the first download must survive")
+            (is (= ["archive.bin"] (vec (.list dir)))           "and no temp file is left beside it")))))))
+
+(deftest a-failed-download-leaves-no-file-behind
+  (with-temp-dir
+    (fn [dir]
+      (with-server
+        (fn [_] [404 "gone" {}])
+        (fn [url]
+          (let [target (io/file dir "archive.bin")]
+            (is (= {:status 404} (fetch! url :as :file :opts {:file target})) "an HTTP status is a result, not an exception")
+            (is (empty? (vec (.list dir)))                      "neither the target nor a temp file may exist")))))))
+
+(deftest an-unknown-as-is-refused-before-any-request
+  ;; No server: the check runs before anything is sent, so the URL is never touched.
+  (let [info (try (fetch! "http://127.0.0.1/never-requested" :as :pdf) nil
+                  (catch clojure.lang.ExceptionInfo e (ex-data e)))]
+    (is (some? info) "the fetch must fail")
+    (is (= {:as :pdf :allowed #{:string :file}} info) "the error names the value and what would have been accepted")))
 
 (deftest the-delay-is-waited-out-before-the-request
   (with-server
