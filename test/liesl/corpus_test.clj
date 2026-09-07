@@ -20,13 +20,22 @@
              {:name "repo"  :kind "source" :base-url "http://127.0.0.1/repo.git"}]})
 
 (defn- succeed?
-  "Invoke f and report whether it returned."
+  "Whether f returns rather than throwing ex-info.
+
+  f  a no-argument function
+
+  Returns true when it returned, false when it threw an ExceptionInfo; any
+  other exception passes through."
   [f]
   (try (f) true (catch clojure.lang.ExceptionInfo _ false)))
 
 (defn- with-temp-db
   "A connection to a fresh migrated database, deleted afterwards. A function
-  rather than a fixture, because only the seeding tests need one."
+  rather than a fixture, because only the seeding tests need one.
+
+  f  the test body, given the open connection
+
+  Returns what f returns."
   [f]
   (let [file     (java.io.File/createTempFile "liesl-corpus-test-" ".db")
         silently true]
@@ -40,6 +49,11 @@
           (io/delete-file target silently))))))
 
 (defn- select-sources!
+  "Every source row, oldest first.
+
+  conn  an open connection
+
+  Returns a vector of {:id :name :base_url :config}."
   [conn]
   (jdbc/execute! conn
                  ["SELECT id, name, base_url, config FROM source ORDER BY id"]

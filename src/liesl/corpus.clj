@@ -16,7 +16,14 @@
 (def ^:private required-source-keys    #{:name   :kind  :base-url})
 
 (defn- check-keys
-  "Throw unless every required key is present."
+  "Throw unless every required key is present.
+
+  m              the map being checked
+  required-keys  the keys it must have
+  what           names m in the error message, e.g. \"Corpus source\"
+  where          goes into the ex-data, with :missing-keys and :found-keys added
+
+  Returns nil; a missing key is an ex-info."
   [m required-keys what where]
   (let [missing-keys (remove (partial contains? m) required-keys)]
     (when (seq missing-keys)
@@ -27,14 +34,23 @@
 
 (defn- pr-config
   "A source's :config as EDN text for the source.config column. Read it back
-  with clojure.edn/read-string."
+  with clojure.edn/read-string.
+
+  config  the map from corpus.edn
+
+  Returns the string pr-str gives, with the print limits cleared."
   [config]
   (binding [*print-length* nil
             *print-level*  nil]
     (pr-str config)))
 
 (defn load
-  "Read corpora/<corpus-name>/corpus.edn from the classpath."
+  "Read corpora/<corpus-name>/corpus.edn from the classpath.
+
+  corpus-name  the directory name, which is also the :corpus it must declare
+
+  Returns the definition as read; a missing, unreadable or malformed one is an
+  ex-info whose data names what was wrong."
   [corpus-name]
   (let [path     (str corpus-name "/corpus.edn")
         resource (io/resource path)
@@ -60,7 +76,13 @@
 
 (defn upsert-sources!
   "One source row per entry, upserted on (corpus, name) so ids survive a
-  re-run. Returns the rows in definition order."
+  re-run.
+
+  conn     an open connection
+  corpus   the corpus name, from a loaded definition
+  sources  its :sources vector
+
+  Returns the rows in definition order, each with its id."
   [conn {:keys [corpus sources]}]
   (mapv (fn [source]
           (jdbc/execute-one!

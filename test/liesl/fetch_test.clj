@@ -19,8 +19,12 @@
 (def ^:private ^:dynamic *source-id* nil)
 
 (defn- insert-a-source!
-  "Create the one source the tests fetch through, and return its id. RETURNING
-  saves a second statement to read back what we just wrote."
+  "Create the one source the tests fetch through. RETURNING saves a second
+  statement to read back what we just wrote.
+
+  conn  an open connection
+
+  Returns the new row's id."
   [conn]
   (:id (jdbc/execute-one!
         conn
@@ -31,7 +35,11 @@
 
 (defn- with-temp-db
   "A fresh migrated database per test, with one source row -- fetch_state
-  references it, and get-connection enforces that."
+  references it, and get-connection enforces that.
+
+  f  the test, run with *db-spec* and *source-id* bound
+
+  Returns nothing the caller needs; a clojure.test fixture."
   [f]
   (let [file     (java.io.File/createTempFile "liesl-fetch-test-" ".db")
         silently true]
@@ -49,7 +57,12 @@
 (defn- respond!
   "Ask handler-fn for [status body headers] and send it back. The exchange is
   one HTTP interaction, holding both the request to read and the response to
-  write."
+  write.
+
+  exchange    the HttpExchange
+  handler-fn  given the exchange, returns [status body headers]; body may be nil
+
+  Returns nothing the caller needs."
   [exchange handler-fn]
   (let [[status body headers] (handler-fn exchange)
         no-body               -1
@@ -61,8 +74,13 @@
 
 (defn- with-server
   "Start a server on a free local port, hand its URL to f, and stop it
-  afterwards. handler-fn is called once per request with the HttpExchange, and
-  the [status body headers] it returns becomes the response."
+  afterwards.
+
+  handler-fn  called once per request with the HttpExchange; the
+              [status body headers] it returns becomes the response
+  f           given the URL of the one page the server serves
+
+  Returns what f returns."
   [handler-fn f]
   (let [loopback        "127.0.0.1"
         path            "/"
@@ -80,19 +98,36 @@
       (f (str "http://" loopback ":" (-> server .getAddress .getPort) "/page"))
       (finally (.stop server no-wait)))))
 
-(defn- get-fetch-state! [url]
+(defn- get-fetch-state!
+  "The fetch_state row for a URL.
+
+  url  the row key
+
+  Returns the whole row as a map, or nil when there is none."
+  [url]
   (with-open [conn (db/get-connection *db-spec*)]
     (jdbc/execute-one! conn
                        ["SELECT * FROM fetch_state WHERE url = ?" url]
                        {:builder-fn rs/as-unqualified-lower-maps})))
 
 (defn- fetch!
+  "fetch-url! against the test database and source, as :string unless told
+  otherwise.
+
+  url   what to fetch
+  opts  keyword arguments merged over the defaults, e.g. :as :file :opts {...}
+
+  Returns what fetch-url! returns."
   [url & {:as opts}]
   (with-open [conn (db/get-connection *db-spec*)]
     (fetch/fetch-url! conn (merge {:url url :source-id *source-id* :as :string} opts))))
 
 (defn- with-temp-dir
-  "A fresh directory for downloads, removed with its contents afterwards."
+  "A fresh directory for downloads, removed with its contents afterwards.
+
+  f  the test body, given the directory as a File
+
+  Returns what f returns."
   [f]
   (let [dir      (.toFile (Files/createTempDirectory "liesl-fetch-test-" (make-array FileAttribute 0)))
         silently true]

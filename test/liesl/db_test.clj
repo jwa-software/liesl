@@ -16,20 +16,34 @@
 (def ^:private ^:dynamic *db-spec* nil)
 
 (defn- query!
-  "Read rows, with plain lower-case keys."
+  "Read rows, with plain lower-case keys.
+
+  conn  an open connection
+  sql   one SELECT, no parameters
+
+  Returns a vector of maps."
   [conn sql]
   ;; Without :builder-fn the keys arrive qualified by their table:
   ;;   {:sqlite_master/name "source"}  ->  {:name "source"}
   (jdbc/execute! conn [sql] {:builder-fn rs/as-unqualified-lower-maps}))
 
 (defn- exec!
-  "Run a statement whose rows are not read -- an insert, or one meant to throw."
+  "Run a statement whose rows are not read -- an insert, or one meant to throw.
+
+  conn  an open connection
+  sql   one statement, no parameters
+
+  Returns nothing the tests need."
   [conn sql]
   (jdbc/execute-one! conn [sql]))
 
 (defn- with-temp-db
   "A fresh migrated database per test. WAL leaves -wal and -shm files beside
-  it, so all three are deleted afterwards."
+  it, so all three are deleted afterwards.
+
+  f  the test, run with *db-file* and *db-spec* bound
+
+  Returns nothing the caller needs; a clojure.test fixture."
   [f]
   (let [file     (java.io.File/createTempFile "liesl-test-" ".db")
         spec     (db/db-spec file)
@@ -45,7 +59,11 @@
 
 (defn- table-names
   "User tables as a set of names -- SQLite's own sqlite_* tables excluded, and
-  a set because table order is arbitrary."
+  a set because table order is arbitrary.
+
+  conn  an open connection
+
+  Returns a set of strings."
   ^clojure.lang.IPersistentSet [conn]
   (into #{}
         (map :name)
