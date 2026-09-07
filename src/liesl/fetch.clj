@@ -82,7 +82,7 @@
 
   Returns its first value, or nil when absent."
   ^String [^HttpResponse response ^String name]
-  (.headers response (.firstValue name) (.orElse nil)))
+  (-> response .headers (.firstValue name) (.orElse nil)))
 
 (defn- upsert!
   "Write the row back. next_fetch is the caller's decision, not ours -- how soon
