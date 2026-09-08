@@ -2,10 +2,6 @@
 
 {:corpus "fhir"
 
- ;; Fetch policy for this corpus. :delay-ms is the pause between two
- ;; consecutive requests, which keeps a full crawl courteous to hl7.org.
- :fetch {:delay-ms 1000}
-
  ;; Oldest first. Version order lives here because the strings do not sort:
  ;; alphabetically STU3 comes last, and it is the oldest of the four.
  :versions ["STU3" "R4" "R4B" "R5"]
@@ -14,9 +10,11 @@
  [{:name     "spec"
    :kind     "spec"
    :base-url "https://hl7.org/fhir/"
-   ;; A published version never changes, so once fetched its next_fetch moves
-   ;; years out; only the current version is worth revisiting.
-   :config   {:version-path "{version}/"}}
+   ;; Each version is published whole as one archive at base-url + version
+   ;; path + archive. A published version never changes, so once fetched its
+   ;; next_fetch moves years out; only the current version is worth revisiting.
+   :config   {:version-path "{version}/"
+              :archive      "fhir-spec.zip"}}
 
   {:name     "repo"
    :kind     "source"

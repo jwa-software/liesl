@@ -5,7 +5,9 @@
 
   Which URLs a source has, and what to do with a body once it arrives, are
   someone else's problem. This namespace does one request."
-  (:require [clojure.java.io      :as io]
+  (:require [clojure.edn          :as edn]
+            [clojure.java.io      :as io]
+            [clojure.string       :as str]
             [liesl.version        :as version]
             [next.jdbc            :as jdbc]
             [next.jdbc.result-set :as rs])
@@ -172,7 +174,6 @@
 
   url         what to fetch
   source-id   the source row it belongs to
-  delay-ms    pause before the request; nil or 0 for none
   next-fetch  written to fetch_state.next_fetch; the caller's decision
   as          where the response body goes, :string or :file
   opts        what that choice needs: nothing for :string, {:file target} for :file
@@ -184,10 +185,7 @@
   {:status n}                 anything else; an HTTP status never throws
 
   A network failure throws."
-  [conn {:keys [url source-id delay-ms next-fetch as opts]}]
-  ;; Sleep before the request, not after, so a caller cannot skip it by
-  ;; abandoning the loop.
-  (when (pos? (or delay-ms 0)) (Thread/sleep (long delay-ms)))
+  [conn {:keys [url source-id next-fetch as opts]}]
   (let [request  (build-request url (last-fetch-state! conn url))
         received (case as
                    :string (fetch-to-string! request)
@@ -210,3 +208,25 @@
       ;; Whichever of :body and :file the handler produced; the other is absent.
       (select-keys received [:status :body :file])
       {:status status})))
+
+(defn fetch-archive!
+  "Fetch one version of a source's archive into dir, conditionally.
+
+  conn      an open connection
+  source    a source row, as upsert-sources! returns it
+  version   which version, e.g. \"R4\"; replaces {version} in the config's path
+  dir       the directory all archives live under
+
+  Returns what fetch-url! returns; on 200 the :file is
+  dir/<corpus>/<source name>/<version>/<archive>."
+  [conn {:keys [source version dir]}]
+  (let [{:keys [version-path archive]} (some-> (:config source) edn/read-string)]
+    (when-not version-path (throw (ex-info (format "%s config needs :version-path" (:name source)) {})))
+    (when-not archive      (throw (ex-info (format "%s config needs :archive"      (:name source)) {})))
+    (let [version-path' (str/replace version-path       "{version}"      version)
+          url           (str         (:base_url source) version-path'    archive)
+          file          (io/file     dir                (:corpus source) (:name source) version archive)]
+      (fetch-url! conn {:url       url
+                        :source-id (:id source)
+                        :as        :file
+                        :opts      {:file file}}))))

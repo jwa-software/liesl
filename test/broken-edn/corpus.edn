@@ -2,5 +2,4 @@
 ;; Fixture: deliberately unparseable. The closing brace is missing.
 
 {:corpus "broken-edn"
- :fetch {:delay-ms 1000}
  :sources []
