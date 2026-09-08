@@ -152,6 +152,18 @@
   (with-open [conn (db/get-connection *db-spec*)]
     (fetch/fetch-archive! conn {:source source :version version :dir dir})))
 
+(defn- versions!
+  "fetch-versions! against the test database.
+
+  source    the row insert-an-archive-source! returned
+  versions  the version strings, in order
+  dir       where archives go
+
+  Returns what fetch-versions! returns."
+  [source versions dir]
+  (with-open [conn (db/get-connection *db-spec*)]
+    (fetch/fetch-versions! conn {:source source :versions versions :dir dir})))
+
 (defn- with-temp-dir
   "A fresh directory for downloads, removed with its contents afterwards.
 
@@ -304,3 +316,32 @@
                          (catch clojure.lang.ExceptionInfo e (ex-message e)))]
         (is (some? message)                              "the fetch must fail")
         (is (= "archives config needs :archive" message) "the error names the source and the missing key")))))
+
+(deftest each-version-is-fetched-in-order
+  (with-temp-dir
+    (fn [dir]
+      (let [seen (atom [])]
+        (with-server
+          (fn [exchange]
+            (swap! seen conj (.getPath (.getRequestURI exchange)))
+            [200 "zip bytes" {}])
+          (fn [url]
+            (let [source  (insert-an-archive-source! (str url "/") {:version-path "{version}/" :archive "spec.zip"})
+                  results (binding [fetch/*pause-ms* 0]
+                            (versions! source ["STU3" "R4"] dir))]
+              (is (= ["STU3" "R4"] (map :version results))                      "one result per version, in the order given")
+              (is (= [200 200]     (map :status  results))                      "each carries fetch-archive!'s result")
+              (is (= ["/page/STU3/spec.zip" "/page/R4/spec.zip"] @seen)         "requests go out in version order")
+              (is (.isFile (io/file dir "test" "archives" "R4" "spec.zip"))     "each version lands in its own directory"))))))))
+
+(deftest the-loop-pauses-between-versions
+  (with-temp-dir
+    (fn [dir]
+      (with-server
+        (fn [_] [200 "zip bytes" {}])
+        (fn [url]
+          (let [source  (insert-an-archive-source! (str url "/") {:version-path "{version}/" :archive "spec.zip"})
+                started (System/currentTimeMillis)]
+            (binding [fetch/*pause-ms* 100]
+              (versions! source ["R4" "R5"] dir))
+            (is (>= (- (System/currentTimeMillis) started) 100) "two versions mean one pause of *pause-ms*")))))))

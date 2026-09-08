@@ -75,9 +75,8 @@
 
   Returns an open java.sql.Connection with foreign keys enforced; the caller
   closes it."
-  (^java.sql.Connection [] (get-connection (db-spec)))
-  (^java.sql.Connection [spec]
-   (doto (jdbc/get-connection spec) (jdbc/execute-one! ["PRAGMA foreign_keys = ON"]))))
+  (^java.sql.Connection []     (get-connection (db-spec)))
+  (^java.sql.Connection [spec] (doto (jdbc/get-connection spec) (jdbc/execute-one! ["PRAGMA foreign_keys = ON"]))))
 
 (defn migration-config
   "Migratus configuration. The database location is defined once, here, rather
