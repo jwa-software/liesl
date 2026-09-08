@@ -23,6 +23,9 @@
 
 (def ^:private request-timeout (Duration/ofSeconds 30))
 
+;; The pause between two consecutive requests to the same server.
+(def ^:dynamic *pause-ms* 1000)
+
 ;; An HttpClient owns a thread pool, and a plain def would create it the moment
 ;; this namespace is required. delay is lazy evaluation, not a duration: the
 ;; body runs at the first @client below, once, and every later @ gets that same
@@ -169,6 +172,13 @@
         ;; on every other path, including an exception mid-download, it cleans up.
         (finally (.delete temp))))))
 
+(defn- pause!
+  "Wait *pause-ms* before the next request to the same server.
+
+  Returns nothing the caller needs."
+  []
+  (Thread/sleep (long *pause-ms*)))
+
 (defn fetch-url!
   "Fetch one URL, conditionally, and update its fetch_state row.
 
@@ -230,3 +240,23 @@
                         :source-id (:id source)
                         :as        :file
                         :opts      {:file file}}))))
+
+(defn fetch-versions!
+  "Fetch a source's archive for each version in turn, pausing *pause-ms*
+  between requests.
+
+  conn      an open connection
+  source    a source row, as upsert-sources! returns it
+  versions  the version strings, fetched in this order
+  dir       the directory all archives live under
+
+  Returns a vector with one map per version, in order: fetch-archive!'s
+  result with :version added."
+  [conn {:keys [source versions dir]}]
+  (into []
+        (map-indexed (fn [i version]
+                       ;; Between requests, not before the first.
+                       (when (pos? i) (pause!))
+                       (assoc (fetch-archive! conn {:source source :version version :dir dir})
+                              :version version)))
+        versions))
