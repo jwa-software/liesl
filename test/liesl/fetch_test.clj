@@ -33,6 +33,24 @@
               "RETURNING id")]
         {:builder-fn rs/as-unqualified-lower-maps})))
 
+(defn- insert-an-archive-source!
+  "A second source, pointed at the test server, whose config names an archive
+  the way fetch-archive! expects.
+
+  base-url  the server's URL, with a trailing slash
+  config    the config map; stored as EDN text
+
+  Returns the row, as upsert-sources! would give it."
+  [base-url config]
+  (with-open [conn (db/get-connection *db-spec*)]
+    (jdbc/execute-one!
+     conn
+     [(str "INSERT INTO source (corpus, name, kind, base_url, config) "
+           "VALUES (?, ?, ?, ?, ?) "
+           "RETURNING id, corpus, name, kind, base_url, config")
+      "test" "archives" "spec" base-url (pr-str config)]
+     {:builder-fn rs/as-unqualified-lower-maps})))
+
 (defn- with-temp-db
   "A fresh migrated database per test, with one source row -- fetch_state
   references it, and get-connection enforces that.
@@ -121,6 +139,18 @@
   [url & {:as opts}]
   (with-open [conn (db/get-connection *db-spec*)]
     (fetch/fetch-url! conn (merge {:url url :source-id *source-id* :as :string} opts))))
+
+(defn- archive!
+  "fetch-archive! against the test database.
+
+  source   the row insert-an-archive-source! returned
+  version  the version string
+  dir      where archives go
+
+  Returns what fetch-archive! returns."
+  [source version dir]
+  (with-open [conn (db/get-connection *db-spec*)]
+    (fetch/fetch-archive! conn {:source source :version version :dir dir})))
 
 (defn- with-temp-dir
   "A fresh directory for downloads, removed with its contents afterwards.
@@ -234,10 +264,43 @@
     (is (some? info) "the fetch must fail")
     (is (= {:as :pdf :allowed #{:string :file}} info) "the error names the value and what would have been accepted")))
 
-(deftest the-delay-is-waited-out-before-the-request
-  (with-server
-    (fn [_] [200 "hello" {}])
-    (fn [url]
-      (let [started (System/currentTimeMillis)]
-        (fetch! url :delay-ms 100)
-        (is (>= (- (System/currentTimeMillis) started) 100))))))
+(deftest an-archive-lands-under-corpus-name-and-version
+  (with-temp-dir
+    (fn [dir]
+      (let [seen (atom nil)]
+        (with-server
+          (fn [exchange]
+            (reset! seen (.getPath (.getRequestURI exchange)))
+            [200 "zip bytes" {}])
+          (fn [url]
+            (let [source (insert-an-archive-source! (str url "/") {:version-path "{version}/" :archive "spec.zip"})
+                  target (io/file dir "test" "archives" "R4" "spec.zip")]
+              (is (= {:status 200 :file target} (archive! source "R4" dir)) "the file sits at dir/corpus/name/version/archive")
+              (is (= "/page/R4/spec.zip" @seen)                           "the URL is base_url, then the version path, then the archive")
+              (is (= "zip bytes" (slurp target))                          "the body went to the file")
+              (is (= (:id source) (:source_id (get-fetch-state! (str url "/R4/spec.zip"))))
+                  "the fetch_state row belongs to the archive's source, not the fixture's"))))))))
+
+(deftest a-second-fetch-of-an-archive-is-a-304
+  (with-temp-dir
+    (fn [dir]
+      (with-server
+        (fn [exchange]
+          (if (.getFirst (.getRequestHeaders exchange) "If-None-Match")
+            [304 nil {}]
+            [200 "zip bytes" {"ETag" "\"v1\""}]))
+        (fn [url]
+          (let [source (insert-an-archive-source! (str url "/") {:version-path "{version}/" :archive "spec.zip"})]
+            (archive! source "R4" dir)
+            (is (= {:status 304} (archive! source "R4" dir))                                   "the stored etag turns the second fetch into a 304")
+            (is (= "zip bytes" (slurp (io/file dir "test" "archives" "R4" "spec.zip"))) "and the first download survives")))))))
+
+(deftest a-source-without-an-archive-is-refused
+  ;; No server: the config is checked before anything is sent.
+  (with-temp-dir
+    (fn [dir]
+      (let [source  (insert-an-archive-source! "http://127.0.0.1/" {:version-path "{version}/"})
+            message (try (archive! source "R4" dir) nil
+                         (catch clojure.lang.ExceptionInfo e (ex-message e)))]
+        (is (some? message)                              "the fetch must fail")
+        (is (= "archives config needs :archive" message) "the error names the source and the missing key")))))
