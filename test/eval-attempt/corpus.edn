@@ -5,5 +5,4 @@
 ;; unsafe reader and a corpus package can run arbitrary code.
 
 {:corpus "eval-attempt"
- :fetch {:delay-ms #=(+ 1 1)}
- :sources []}
+ :sources [{:name "spec" :kind "spec" :base-url #=(str "http://" "127.0.0.1/")}]}

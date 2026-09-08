@@ -11,9 +11,8 @@
             [next.jdbc            :as jdbc]
             [next.jdbc.result-set :as rs]))
 
-(def ^:private required-top-level-keys #{:corpus :fetch :sources})
-(def ^:private required-fetch-keys     #{:delay-ms})
-(def ^:private required-source-keys    #{:name   :kind  :base-url})
+(def ^:private required-top-level-keys #{:corpus :sources})
+(def ^:private required-source-keys    #{:name :kind :base-url})
 
 (defn- check-keys
   "Throw unless every required key is present.
@@ -60,13 +59,13 @@
     (let [parsed (try (edn/read-string (slurp resource))
                       (catch Exception e (throw (ex-info "Corpus definition is not a readable EDN" where e))))]
       (when-not (map? parsed) (throw (ex-info "Corpus definition is not a map" (assoc where :type (type parsed)))))
-      (check-keys parsed          required-top-level-keys "Corpus definition" where)
-      (check-keys (:fetch parsed) required-fetch-keys     "Corpus :fetch"     where)
+      (check-keys parsed required-top-level-keys "Corpus definition" where)
       ;; The directory name is how a corpus is addressed, so a :corpus key that
       ;; disagrees with it would make the same corpus answer to two names.
       (when-not (= corpus-name (:corpus parsed))
-        (throw (ex-info "Corpus name does not match its directory"
-                        (assoc where :declared (:corpus parsed)))))
+        (throw (ex-info
+                 (format "Corpus %s does not match its directory %s" (:corpus parsed) corpus-name)
+                 where)))
       (doseq [source (:sources parsed)]
         (check-keys source
                     required-source-keys

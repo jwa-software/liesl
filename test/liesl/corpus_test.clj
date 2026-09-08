@@ -15,7 +15,6 @@
 ;; what corpora/fhir/corpus.edn happens to say.
 (def ^:private two-sources
   {:corpus  "test"
-   :fetch   {:delay-ms 0}
    :sources [{:name "pages" :kind "spec"   :base-url "http://127.0.0.1/" :config {:clone :shallow}}
              {:name "repo"  :kind "source" :base-url "http://127.0.0.1/repo.git"}]})
 
@@ -79,34 +78,36 @@
   (let [info (try (corpus/load "missing-keys") nil
                   (catch clojure.lang.ExceptionInfo e (ex-data e)))]
     (is (some? info) "the load must fail")
-    (is (= [:fetch] (:missing-keys info)))
-    (is (= [:corpus :sources] (:found-keys info)))))
+    (is (= [:sources] (:missing-keys info)))
+    (is (= [:corpus]  (:found-keys   info)))))
 
 (deftest a-source-missing-a-key-names-the-source
   (let [info (try (corpus/load "bad-source") nil
                   (catch clojure.lang.ExceptionInfo e (ex-data e)))]
     (is (some? info) "the load must fail")
-    (is (= "spec" (:name (:source info))))
+    (is (= "spec"      (:name (:source info))))
     (is (= [:base-url] (:missing-keys info)))))
 
 (deftest a-corpus-cannot-execute-code
-  ;; The fixture is valid apart from #=(+ 1 1), which asks the reader to
-  ;; evaluate. Were it evaluated, :delay-ms would be 2 and the load would
-  ;; succeed -- so a failure here is the proof that it was not.
+  ;; The fixture is valid apart from a #= form, which asks the reader to
+  ;; evaluate. Were it evaluated, :base-url would be a string and the load
+  ;; would succeed -- so a failure here is the proof that it was not.
   (is (not (succeed? #(corpus/load "eval-attempt")))))
 
 (deftest a-corpus-may-not-answer-to-two-names
-  (let [info (try (corpus/load "mislabelled") nil
-                  (catch clojure.lang.ExceptionInfo e (ex-data e)))]
-    (is (some? info)
+  (let [message (try (corpus/load "mislabelled") nil
+                     (catch clojure.lang.ExceptionInfo e (ex-message e)))]
+    (is (some? message)
         "the load must fail")
-    (is (= "wrong-name" (:declared info)))))
+    (is (= "Corpus wrong-name does not match its directory mislabelled" message)
+        "the error names both the declared name and the directory")))
 
 (deftest seeds-one-row-per-source
   (with-temp-db
     (fn [conn]
       (let [rows (corpus/upsert-sources! conn two-sources)]
-        (is (= ["pages" "repo"] (map :name rows)) "one row per source, in definition order")
+        (is (= ["pages" "repo"] (map :name rows))
+            "one row per source, in definition order")
         (is (every? :id rows)
             "every row comes back with its id")
         (is (= {:clone :shallow} (edn/read-string (:config (first rows))))

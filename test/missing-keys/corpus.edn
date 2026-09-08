@@ -1,5 +1,4 @@
 ;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
-;; Fixture: valid EDN, but :fetch is absent.
+;; Fixture: valid EDN, but :sources is absent.
 
-{:corpus "missing-keys"
- :sources []}
+{:corpus "missing-keys"}
