@@ -322,6 +322,10 @@ pg_stat_tmp/
 # The rollback journal, used when a connection is not in WAL mode.
 *.db-journal
 
+# Everything liesl generates: the database above and downloaded archives.
+# One directory, so the project root holds source and nothing else.
+/data/
+
 # ============================================================================
 # Operating systems
 # ============================================================================

@@ -19,6 +19,7 @@
             [migratus.core :as migratus]
             [next.jdbc :as jdbc]))
 
+(def ^:private data-dir-name        "data")
 (def ^:private default-db-file-name "liesl.db")
 
 (def ^:private migration-dir
@@ -50,13 +51,13 @@
 (defn default-db-file
   "Where the database lives when nothing says otherwise. LIESL_DB overrides it,
   which is how a user keeps their corpus off the disk the clone is on;
-  otherwise the database sits beside deps.edn.
+  otherwise the database is data/liesl.db under the project root.
 
   Returns the File; it need not exist yet."
   ^java.io.File []
   (if-let [db-file (System/getenv "LIESL_DB")]
     (io/file db-file)
-    (io/file (project-root) default-db-file-name)))
+    (io/file (project-root) data-dir-name default-db-file-name)))
 
 (defn db-spec
   "A next.jdbc db-spec for a database file.
@@ -99,7 +100,11 @@
 
   Returns nothing the caller needs."
   [{:keys [db-file]}]
-  (let [spec (db-spec (or db-file (default-db-file)))]
+  (let [file (.getAbsoluteFile (io/file (or db-file (default-db-file))))
+        spec (db-spec file)]
+    ;; SQLite creates the file but not the directory, and on a fresh clone
+    ;; data/ does not exist yet.
+    (io/make-parents file)
     (set-wal! spec)
     (migratus/migrate (migration-config spec))))
 
