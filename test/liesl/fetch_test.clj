@@ -164,6 +164,32 @@
   (with-open [conn (db/get-connection *db-spec*)]
     (fetch/fetch-versions! conn {:source source :versions versions :dir dir})))
 
+(defn- archive-definition
+  "A corpus definition with one archive source pointed at the test server and
+  one source that is not an archive.
+
+  base-url  the server's URL, with a trailing slash
+
+  Returns the definition, in the shape corpus/load gives."
+  [base-url]
+  {:corpus   "test"
+   :versions ["R4" "R5"]
+   :sources  [{:name "archives" :kind "spec"   :base-url base-url                    :config {:version-path "{version}/" :archive "spec.zip"}}
+              {:name "repo"     :kind "source" :base-url "http://127.0.0.1/repo.git" :config {:clone :shallow}}]})
+
+(defn- corpus!
+  "fetch-corpus! against the test database, with no pause.
+
+  definition  the definition to fetch
+  versions    the version strings, or nil for the definition's own
+  dir         where archives go
+
+  Returns what fetch-corpus! returns."
+  [definition versions dir]
+  (binding [fetch/*pause-ms* 0]
+    (with-open [conn (db/get-connection *db-spec*)]
+      (fetch/fetch-corpus! conn {:definition definition :versions versions :dir dir}))))
+
 (defn- with-temp-dir
   "A fresh directory for downloads, removed with its contents afterwards.
 
@@ -345,3 +371,34 @@
             (binding [fetch/*pause-ms* 100]
               (versions! source ["R4" "R5"] dir))
             (is (>= (- (System/currentTimeMillis) started) 100) "two versions mean one pause of *pause-ms*")))))))
+
+(deftest only-a-source-naming-an-archive-is-an-archive-source
+  ;; #' reaches the private function through its var, so the test can call it
+  ;; without making it public for everyone else.
+  (let [archive-source? #'fetch/archive-source?]
+    (is (true?  (archive-source? {:config "{:version-path \"{version}/\" :archive \"spec.zip\"}"})) "an :archive in the config")
+    (is (false? (archive-source? {:config "{:clone :shallow}"}))                                    "a config without one")
+    (is (false? (archive-source? {:config nil}))                                                    "no config at all")))
+
+(deftest a-corpus-fetches-its-archive-sources-and-skips-the-rest
+  (with-temp-dir
+    (fn [dir]
+      (with-server
+        (fn [_] [200 "zip bytes" {}])
+        (fn [url]
+          (let [results  (corpus! (archive-definition (str url "/")) nil dir)
+                archives (get results "archives")]
+            (is (= #{"archives"} (set (keys results)))                    "only the source with an :archive is fetched")
+            (is (= ["R4" "R5"] (map :version archives))                   "every version the definition declares, in its order")
+            (is (.isFile (io/file dir "test" "archives" "R5" "spec.zip")) "and each lands in its own directory")))))))
+
+(deftest versions-given-to-fetch-corpus-override-the-definition
+  (with-temp-dir
+    (fn [dir]
+      (with-server
+        (fn [_] [200 "zip bytes" {}])
+        (fn [url]
+          (let [results  (corpus! (archive-definition (str url "/")) ["R4"] dir)
+                archives (get results "archives")]
+            (is (= ["R4"] (map :version archives))                    "one version asked for, one fetched")
+            (is (not (.exists (io/file dir "test" "archives" "R5")))  "the other is not touched")))))))
