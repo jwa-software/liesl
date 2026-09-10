@@ -48,6 +48,13 @@
   (with-open [conn (jdbc/get-connection spec)]
     (jdbc/execute-one! conn ["PRAGMA journal_mode = WAL"])))
 
+(defn data-dir
+  "Where everything liesl generates lives: data/ under the project root.
+
+  Returns the directory as a File; it need not exist yet."
+  ^java.io.File []
+  (io/file (project-root) data-dir-name))
+
 (defn default-db-file
   "Where the database lives when nothing says otherwise. LIESL_DB overrides it,
   which is how a user keeps their corpus off the disk the clone is on;
@@ -57,7 +64,7 @@
   ^java.io.File []
   (if-let [db-file (System/getenv "LIESL_DB")]
     (io/file db-file)
-    (io/file (project-root) data-dir-name default-db-file-name)))
+    (io/file (data-dir) default-db-file-name)))
 
 (defn db-spec
   "A next.jdbc db-spec for a database file.
@@ -91,7 +98,7 @@
            :migration-dir migration-dir
            :db spec}))
 
-(defn migrate
+(defn ^:exec-fn migrate
   "Apply every pending migration. `clj -X:migrate`. Takes the exec map because
   that is what -X passes.
 
@@ -107,7 +114,7 @@
     (set-wal! spec)
     (migratus/migrate (migration-config spec))))
 
-(defn rollback
+(defn ^:exec-fn rollback
   "Undo the most recently applied migration. `clj -X:rollback`.
 
   db-file  a database other than the default, or absent
@@ -116,7 +123,7 @@
   [{:keys [db-file]}]
   (migratus/rollback (migration-config (db-spec (or db-file (default-db-file))))))
 
-(defn pending-list
+(defn ^:exec-fn pending-list
   "Print the migrations that have not been applied. `clj -X:pending-list`.
   Prints rather than returns, because -X discards the return value.
 
