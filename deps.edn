@@ -42,6 +42,12 @@
    :jvm-opts ["--enable-native-access=ALL-UNNAMED"
               "-Djava.util.logging.config.file=test/logging.properties"]}
 
+  ;; clj -M:cljfmt check  report the files .cljfmt.edn would change
+  ;; clj -M:cljfmt fix    change them
+  :cljfmt
+  {:extra-deps {dev.weavejester/cljfmt {:mvn/version "0.16.5"}}
+   :main-opts  ["-m" "cljfmt.main"]}
+
   ;; clj -X:migrate       apply every pending migration
   ;; clj -X:rollback      undo the most recently applied one
   ;; clj -X:pending-list  print the migrations that have not run

@@ -16,8 +16,8 @@
   `get-connection` -- which is why code should open connections through here
   rather than calling next.jdbc directly."
   (:require [clojure.java.io :as io]
-            [migratus.core :as migratus]
-            [next.jdbc :as jdbc]))
+            [migratus.core   :as migratus]
+            [next.jdbc       :as jdbc]))
 
 (def ^:private data-dir-name        "data")
 (def ^:private default-db-file-name "liesl.db")
@@ -34,9 +34,10 @@
   ^java.io.File []
   (let [dir  (io/file (System/getProperty "user.dir"))
         deps (io/file dir "deps.edn")]
-    (when-not (.isFile deps)
-      (throw (ex-info "Not a tools.deps project root" {:dir (str dir)})))
-    dir))
+       (when-not (.isFile deps)
+         (throw (ex-info "Not a tools.deps project root"
+                         {:dir (str dir)})))
+       dir))
 
 (defn- set-wal!
   "Switch the database to WAL mode. Persistent: set once, it stays in the file.
@@ -94,9 +95,9 @@
 
   Returns the config map Migratus takes."
   ([] (migration-config (db-spec)))
-  ([spec] {:store :database
+  ([spec] {:store         :database
            :migration-dir migration-dir
-           :db spec}))
+           :db            spec}))
 
 (defn ^:exec-fn migrate
   "Apply every pending migration. `clj -X:migrate`. Takes the exec map because
@@ -108,11 +109,11 @@
   [{:keys [db-file]}]
   (let [file (.getAbsoluteFile (io/file (or db-file (default-db-file))))
         spec (db-spec file)]
-    ;; SQLite creates the file but not the directory, and on a fresh clone
-    ;; data/ does not exist yet.
-    (io/make-parents file)
-    (set-wal! spec)
-    (migratus/migrate (migration-config spec))))
+       ;; SQLite creates the file but not the directory, and on a fresh clone
+       ;; data/ does not exist yet.
+       (io/make-parents file)
+       (set-wal! spec)
+       (migratus/migrate (migration-config spec))))
 
 (defn ^:exec-fn rollback
   "Undo the most recently applied migration. `clj -X:rollback`.
@@ -132,5 +133,6 @@
   Returns nil."
   [{:keys [db-file]}]
   (let [spec (db-spec (or db-file (default-db-file)))]
-    (doseq [m (migratus/pending-list (migration-config spec))]
-      (println m))))
+       (doseq
+         [m (migratus/pending-list (migration-config spec))]
+         (println m))))
