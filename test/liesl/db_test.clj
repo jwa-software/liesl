@@ -48,14 +48,14 @@
   (let [file     (java.io.File/createTempFile "liesl-test-" ".db")
         spec     (db/db-spec file)
         silently true]
-    (try
-      (binding [*db-file* file
-                *db-spec* spec]
-        (db/migrate {:db-file file})
-        (f))
-      (finally
-        (doseq [suffix ["" "-wal" "-shm"]]
-          (io/delete-file (io/file (str file suffix)) silently))))))
+       (try
+         (binding [*db-file* file
+                   *db-spec* spec]
+                  (db/migrate {:db-file file})
+                  (f))
+         (finally
+           (doseq [suffix ["" "-wal" "-shm"]]
+             (io/delete-file (io/file (str file suffix)) silently))))))
 
 (defn- table-names
   "User tables as a set of names -- SQLite's own sqlite_* tables excluded, and
@@ -138,5 +138,5 @@
   (is (str/blank? (with-out-str (db/pending-list {:db-file *db-file*}))))
   (db/rollback {:db-file *db-file*})
   (is (str/includes?
-       (with-out-str (db/pending-list {:db-file *db-file*}))
-       "initial-schema")))
+        (with-out-str (db/pending-list {:db-file *db-file*}))
+        "initial-schema")))

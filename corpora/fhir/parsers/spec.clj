@@ -51,12 +51,12 @@
   nil  a rendered view, such as patient.json.html"
   [^ZipEntry entry ^String dir ^String url-prefix]
   (let [name (windows->unix (.getName entry))]
-    (when (and (not (.isDirectory entry))
-               (str/starts-with? name dir)
-               (str/ends-with?   name ".html")
-               (not (re-find rendered-view name)))
-      (let [path (subs name (count dir))]
-        {:path path :url (str url-prefix path) :entry entry}))))
+       (when (and (not (.isDirectory entry))
+                  (str/starts-with? name dir)
+                  (str/ends-with?   name ".html")
+                  (not (re-find rendered-view name)))
+         (let [path (subs name (count dir))]
+              {:path path :url (str url-prefix path) :entry entry}))))
 
 ;; ---- Public ----
 
@@ -74,12 +74,12 @@
   An unknown version is an ex-info naming it and the known ones."
   [^ZipFile archive ^String version ^String url-prefix]
   (let [dir (get page-dirs version)]
-    (when-not dir
-      (throw (ex-info (format "Unknown FHIR version %s; known: %s" version (str/join " " (keys page-dirs)))
-                      {:version version})))
-    (into []
-          (keep #(zip-entry->page % dir url-prefix))
-          (enumeration-seq (.entries archive)))))
+       (when-not dir
+         (throw (ex-info (format "Unknown FHIR version %s; known: %s" version (str/join " " (keys page-dirs)))
+                         {:version version})))
+       (into []
+             (keep #(zip-entry->page % dir url-prefix))
+             (enumeration-seq (.entries archive)))))
 
 (defn page-html
   "One page's HTML, read from the archive on demand.
@@ -90,5 +90,5 @@
   Returns the page's content as a UTF-8 string."
   ^String [^ZipFile archive page]
   (let [^ZipEntry entry (:entry page)]
-    (with-open [in (.getInputStream archive entry)]
-      (slurp in :encoding "UTF-8"))))
+       (with-open [in (.getInputStream archive entry)]
+         (slurp in :encoding "UTF-8"))))

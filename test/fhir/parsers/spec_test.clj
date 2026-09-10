@@ -57,47 +57,47 @@
   [entries f]
   (let [file     (File/createTempFile "fhir-spec-test-" ".zip")
         silently true]
-    (try
-      (write-zip! file entries)
-      (with-open [archive (ZipFile. file)]
-        (f archive))
-      (finally
-        (io/delete-file file silently)))))
+       (try
+         (write-zip! file entries)
+         (with-open [archive (ZipFile. file)]
+           (f archive))
+         (finally
+           (io/delete-file file silently)))))
 
 (deftest a-windows-built-archive-yields-the-pages-under-site
   (with-archive windows-entries
     (fn [archive]
-      (let [pages (spec/pages archive "R4" url-prefix)]
-        (is (= ["patient.html" "ehrsrle/auditevent.html"] (map :path pages))
-            "index.html is outside site, the JSON view is a rendering, the CSS is not a page")
-        (is (= [(str url-prefix "patient.html") (str url-prefix "ehrsrle/auditevent.html")] (map :url pages))
-            "the URL is the prefix plus the path with slashes")
-        (is (= (map :path pages) (map :path (spec/pages archive "STU3" url-prefix)))
-            "STU3 archives have the same layout")))))
+        (let [pages (spec/pages archive "R4" url-prefix)]
+             (is (= ["patient.html" "ehrsrle/auditevent.html"] (map :path pages))
+                 "index.html is outside site, the JSON view is a rendering, the CSS is not a page")
+             (is (= [(str url-prefix "patient.html") (str url-prefix "ehrsrle/auditevent.html")] (map :url pages))
+                 "the URL is the prefix plus the path with slashes")
+             (is (= (map :path pages) (map :path (spec/pages archive "STU3" url-prefix)))
+                 "STU3 archives have the same layout")))))
 
 (deftest an-r4b-archive-yields-the-pages-under-its-own-directory
   (with-archive r4b-entries
     (fn [archive]
-      (is (= ["patient.html"] (map :path (spec/pages archive "R4B" url-prefix)))
-          "the JSON view and the Mac shadow entry are not pages"))))
+        (is (= ["patient.html"] (map :path (spec/pages archive "R4B" url-prefix)))
+            "the JSON view and the Mac shadow entry are not pages"))))
 
 (deftest an-r5-archive-yields-the-pages-under-fhir-spec-site
   (with-archive r5-entries
     (fn [archive]
-      (is (= ["patient.html"] (map :path (spec/pages archive "R5" url-prefix)))
-          "the index above the site directory and the Mac shadow entry are not pages"))))
+        (is (= ["patient.html"] (map :path (spec/pages archive "R5" url-prefix)))
+            "the index above the site directory and the Mac shadow entry are not pages"))))
 
 (deftest a-version-without-a-known-layout-is-refused
   (with-archive windows-entries
     (fn [archive]
-      (let [message (try (spec/pages archive "R6" url-prefix)
-                         nil
-                         (catch clojure.lang.ExceptionInfo e (ex-message e)))]
-        (is (= "Unknown FHIR version R6; known: STU3 R4 R4B R5" message)
-            "the error names the version and the ones it knows")))))
+        (let [message (try (spec/pages archive "R6" url-prefix)
+                           nil
+                           (catch clojure.lang.ExceptionInfo e (ex-message e)))]
+             (is (= "Unknown FHIR version R6; known: STU3 R4 R4B R5" message)
+                 "the error names the version and the ones it knows")))))
 
 (deftest page-html-reads-one-page
   (with-archive windows-entries
     (fn [archive]
-      (let [[patient] (spec/pages archive "R4" url-prefix)]
-        (is (= "<p>patient</p>" (spec/page-html archive patient)) "the content comes back as written")))))
+        (let [[patient] (spec/pages archive "R4" url-prefix)]
+             (is (= "<p>patient</p>" (spec/page-html archive patient)) "the content comes back as written")))))

@@ -48,11 +48,11 @@
   ^bytes [^InputStream in]
   (let [digest (MessageDigest/getInstance "SHA-256")
         buffer (byte-array 8192)]
-    (loop [n (.read in buffer)]
-      (when (pos? n)
-        (.update digest buffer 0 n)
-        (recur (.read in buffer))))
-    (.digest digest)))
+       (loop [n (.read in buffer)]
+         (when (pos? n)
+           (.update digest buffer 0 n)
+           (recur (.read in buffer))))
+       (.digest digest)))
 
 (defn- build-request
   "A GET carrying whatever validators the last fetch left behind. With neither,
@@ -66,12 +66,12 @@
   ^HttpRequest [url {:keys [etag last_modified]}]
   (let [^HttpRequest$Builder builder
         (doto
-         (-> url URI/create HttpRequest/newBuilder)
+          (-> url URI/create HttpRequest/newBuilder)
           (.header "User-Agent" user-agent)
           (.timeout request-timeout))]
-    (when etag          (.header builder "If-None-Match"     etag))
-    (when last_modified (.header builder "If-Modified-Since" last_modified))
-    (.build builder)))
+       (when etag          (.header builder "If-None-Match"     etag))
+       (when last_modified (.header builder "If-Modified-Since" last_modified))
+       (.build builder)))
 
 (defn- header
   "One response header.
@@ -124,20 +124,20 @@
   Returns nothing the caller needs."
   [conn {:keys [url source-id next-fetch status etag last-modified content-hash failed?]}]
   (jdbc/execute-one!
-   conn
-   [(str "INSERT INTO fetch_state "
-         "  (url, source_id, etag, last_modified, content_hash, last_fetched, next_fetch, status, failures) "
-         "  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
-         "ON CONFLICT (url) DO UPDATE SET "
-         "  etag          = COALESCE(excluded.etag, fetch_state.etag), "
-         "  last_modified = COALESCE(excluded.last_modified, fetch_state.last_modified), "
-         "  content_hash  = COALESCE(excluded.content_hash, fetch_state.content_hash), "
-         "  last_fetched  = excluded.last_fetched, "
-         "  next_fetch    = excluded.next_fetch, "
-         "  status        = excluded.status, "
-         "  failures      = CASE WHEN excluded.failures > 0 "
-         "                       THEN fetch_state.failures + 1 ELSE 0 END")
-    url source-id etag last-modified content-hash (str (Instant/now)) next-fetch status (if failed? 1 0)]))
+    conn
+    [(str "INSERT INTO fetch_state "
+          "  (url, source_id, etag, last_modified, content_hash, last_fetched, next_fetch, status, failures) "
+          "  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+          "ON CONFLICT (url) DO UPDATE SET "
+          "  etag          = COALESCE(excluded.etag, fetch_state.etag), "
+          "  last_modified = COALESCE(excluded.last_modified, fetch_state.last_modified), "
+          "  content_hash  = COALESCE(excluded.content_hash, fetch_state.content_hash), "
+          "  last_fetched  = excluded.last_fetched, "
+          "  next_fetch    = excluded.next_fetch, "
+          "  status        = excluded.status, "
+          "  failures      = CASE WHEN excluded.failures > 0 "
+          "                       THEN fetch_state.failures + 1 ELSE 0 END")
+     url source-id etag last-modified content-hash (str (Instant/now)) next-fetch status (if failed? 1 0)]))
 
 ;; ---- Network and time ----
 
@@ -153,10 +153,10 @@
         ^HttpResponse response (.send http request (HttpResponse$BodyHandlers/ofString))
         ^String       body     (.body response)
         status                 (.statusCode response)]
-    {:response     response
-     :status       status
-     :body         body
-     :content-hash (when (= 200 status) (sha-256 (io/input-stream (.getBytes body "UTF-8"))))}))
+       {:response     response
+        :status       status
+        :body         body
+        :content-hash (when (= 200 status) (sha-256 (io/input-stream (.getBytes body "UTF-8"))))}))
 
 (defn- fetch-to-file!
   "Send the request and write the response body into target. The body is
@@ -169,28 +169,30 @@
   absolute, :content-hash is nil unless the status is 200."
   [^HttpRequest request ^File target]
   (let [target (.getAbsoluteFile target)]
-    (io/make-parents target)
-    (let [prefix     (str (.getName target) ".")
-          suffix     ".part"
-          dir        (.getParentFile target)
-          ^File temp (File/createTempFile prefix suffix dir)]
-      (try
-        (let [^HttpClient   http         @client
-              ^HttpResponse response     (.send http request (HttpResponse$BodyHandlers/ofFile (.toPath temp)))
-              status                     (.statusCode response)
-              ;; Only 200 OK brings new content worth keeping. 304 Not Modified
-              ;; and any failure alike leave the previous download in place.
-              ok?                        (= 200 status)
-              content-hash               (when ok? (with-open [in (io/input-stream temp)] (sha-256 in)))]
-          (when ok?
-            (Files/move (.toPath temp) (.toPath target) (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING])))
-          {:response     response
-           :status       status
-           :file         target
-           :content-hash content-hash})
-        ;; After a move the temp path no longer exists and delete does nothing;
-        ;; on every other path, including an exception mid-download, it cleans up.
-        (finally (.delete temp))))))
+       (io/make-parents target)
+       (let [prefix     (str (.getName target) ".")
+             suffix     ".part"
+             dir        (.getParentFile target)
+             ^File temp (File/createTempFile prefix suffix dir)]
+            (try
+              (let [^HttpClient   http         @client
+                    ^HttpResponse response     (.send http request (HttpResponse$BodyHandlers/ofFile (.toPath temp)))
+                    status                     (.statusCode response)
+                    ;; Only 200 OK brings new content worth keeping. 304 Not Modified
+                    ;; and any failure alike leave the previous download in place.
+                    ok?                        (= 200 status)
+                    content-hash               (when ok? (with-open [in (io/input-stream temp)] (sha-256 in)))]
+                   (when ok?
+                     (Files/move (.toPath temp)
+                                 (.toPath target)
+                                 (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING])))
+                   {:response     response
+                    :status       status
+                    :file         target
+                    :content-hash content-hash})
+              ;; After a move the temp path no longer exists and delete does nothing;
+              ;; on every other path, including an exception mid-download, it cleans up.
+              (finally (.delete temp))))))
 
 (defn- pause!
   "Wait *pause-ms* before the next request to the same server.
@@ -229,18 +231,18 @@
         ;; failure alike come back as the status alone; which statuses count
         ;; as failures is :failed? below.
         ok?      (= 200 status)]
-    (upsert! conn {:url           url
-                   :source-id     source-id
-                   :next-fetch    next-fetch
-                   :status        status
-                   :etag          (header response "etag")
-                   :last-modified (header response "last-modified")
-                   :content-hash  content-hash
-                   :failed?       (>= status 400)})
-    (if ok?
-      ;; Whichever of :body and :file the handler produced; the other is absent.
-      (select-keys received [:status :body :file])
-      {:status status})))
+       (upsert! conn {:url           url
+                      :source-id     source-id
+                      :next-fetch    next-fetch
+                      :status        status
+                      :etag          (header response "etag")
+                      :last-modified (header response "last-modified")
+                      :content-hash  content-hash
+                      :failed?       (>= status 400)})
+       (if ok?
+         ;; Whichever of :body and :file the handler produced; the other is absent.
+         (select-keys received [:status :body :file])
+         {:status status})))
 
 (defn fetch-archive!
   "Fetch one version of a source's archive into dir, conditionally.
@@ -256,15 +258,17 @@
   {:status <n>}                                                         anything else"
   [conn {:keys [source version dir]}]
   (let [{:keys [version-path archive]} (some-> (:config source) edn/read-string)]
-    (when-not version-path (throw (ex-info (format "%s config needs :version-path" (:name source)) {})))
-    (when-not archive      (throw (ex-info (format "%s config needs :archive"      (:name source)) {})))
-    (let [version-path' (str/replace version-path       "{version}"      version)
-          url           (str         (:base_url source) version-path'    archive)
-          file          (io/file     dir                (:corpus source) (:name source) version archive)]
-      (fetch-url! conn {:url       url
-                        :source-id (:id source)
-                        :as        :file
-                        :opts      {:file file}}))))
+       (when-not version-path (throw (ex-info (format "%s config needs :version-path" (:name source))
+                                              {})))
+       (when-not archive      (throw (ex-info (format "%s config needs :archive"      (:name source))
+                                              {})))
+       (let [version-path' (str/replace version-path       "{version}"      version)
+             url           (str         (:base_url source) version-path'    archive)
+             file          (io/file     dir                (:corpus source) (:name source) version archive)]
+            (fetch-url! conn {:url       url
+                              :source-id (:id source)
+                              :as        :file
+                              :opts      {:file file}}))))
 
 (defn fetch-versions!
   "Fetch a source's archive for each version in turn, pausing *pause-ms*
@@ -281,10 +285,10 @@
   [conn {:keys [source versions dir]}]
   (into []
         (map-indexed (fn [i version]
-                       ;; Between requests, not before the first.
-                       (when (pos? i) (pause!))
-                       (assoc (fetch-archive! conn {:source source :version version :dir dir})
-                              :version version)))
+                         ;; Between requests, not before the first.
+                         (when (pos? i) (pause!))
+                         (assoc (fetch-archive! conn {:source source :version version :dir dir})
+                                :version version)))
         versions))
 
 (defn fetch-corpus!
@@ -303,10 +307,10 @@
   [conn {:keys [definition versions dir]}]
   (let [versions (or versions (:versions definition))
         sources  (corpus/upsert-sources! conn definition)]
-    (into {}
-          (comp (filter archive-source?)
-                (map (fn [source] [(:name source) (fetch-versions! conn {:source source :versions versions :dir dir})])))
-          sources)))
+       (into {}
+             (comp (filter archive-source?)
+                   (map (fn [source] [(:name source) (fetch-versions! conn {:source source :versions versions :dir dir})])))
+             sources)))
 
 (defn ^:exec-fn fetch
   "Fetch a corpus's archives into data/archives. `clj -X:fetch :corpus fhir`,
@@ -320,9 +324,10 @@
   Prints one line per version fetched. Returns nil, because -X discards it."
   [{:keys [corpus versions pause-ms]}]
   (binding [*pause-ms* (or pause-ms *pause-ms*)]
-    (with-open [conn (db/get-connection)]
-      (doseq [[source-name results] (fetch-corpus! conn {:definition (corpus/load (name corpus))
-                                                         :versions   versions
-                                                         :dir        (io/file (db/data-dir) archives-dir-name)})
-              {:keys [version status file]} results]
-        (println source-name version status (str file))))))
+           (with-open [conn (db/get-connection)]
+             (doseq
+               [[name source] (fetch-corpus! conn {:definition (corpus/load (name corpus))
+                                                   :versions   versions
+                                                   :dir        (io/file (db/data-dir) archives-dir-name)})
+                {:keys [version status file]} source]
+               (println name version status (str file))))))

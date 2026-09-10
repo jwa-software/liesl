@@ -5,11 +5,11 @@
   because what is being checked is conditional requests and 304s -- behaviour
   that only exists between two parties that both speak HTTP."
   (:require [clojure.java.io      :as io]
+            [clojure.test         :refer [deftest is use-fixtures]]
             [liesl.db             :as db]
             [liesl.fetch          :as fetch]
             [next.jdbc            :as jdbc]
-            [next.jdbc.result-set :as rs]
-            [clojure.test         :refer [deftest is use-fixtures]])
+            [next.jdbc.result-set :as rs])
   (:import [com.sun.net.httpserver   HttpServer HttpHandler]
            [java.net                 InetSocketAddress]
            [java.nio.file            Files]
@@ -27,11 +27,11 @@
   Returns the new row's id."
   [conn]
   (:id (jdbc/execute-one!
-        conn
-        [(str "INSERT INTO source (corpus, name, kind, base_url) "
-              "VALUES ('test', 'pages', 'spec', 'http://127.0.0.1/') "
-              "RETURNING id")]
-        {:builder-fn rs/as-unqualified-lower-maps})))
+         conn
+         [(str "INSERT INTO source (corpus, name, kind, base_url) "
+               "VALUES ('test', 'pages', 'spec', 'http://127.0.0.1/') "
+               "RETURNING id")]
+         {:builder-fn rs/as-unqualified-lower-maps})))
 
 (defn- insert-an-archive-source!
   "A second source, pointed at the test server, whose config names an archive
@@ -44,12 +44,12 @@
   [base-url config]
   (with-open [conn (db/get-connection *db-spec*)]
     (jdbc/execute-one!
-     conn
-     [(str "INSERT INTO source (corpus, name, kind, base_url, config) "
-           "VALUES (?, ?, ?, ?, ?) "
-           "RETURNING id, corpus, name, kind, base_url, config")
-      "test" "archives" "spec" base-url (pr-str config)]
-     {:builder-fn rs/as-unqualified-lower-maps})))
+      conn
+      [(str "INSERT INTO source (corpus, name, kind, base_url, config) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "RETURNING id, corpus, name, kind, base_url, config")
+       "test" "archives" "spec" base-url (pr-str config)]
+      {:builder-fn rs/as-unqualified-lower-maps})))
 
 (defn- with-temp-db
   "A fresh migrated database per test, with one source row -- fetch_state
@@ -61,16 +61,16 @@
   [f]
   (let [file     (java.io.File/createTempFile "liesl-fetch-test-" ".db")
         silently true]
-    (try
-      (db/migrate {:db-file file})
-      (binding [*db-spec* (db/db-spec file)]
-        (with-open [conn (db/get-connection *db-spec*)]
-          (binding [*source-id* (insert-a-source! conn)]
-            (f))))
-      (finally
-        (doseq [suffix ["" "-wal" "-shm"]
-                :let   [target (io/file (str file suffix))]]
-          (io/delete-file target silently))))))
+       (try
+         (db/migrate {:db-file file})
+         (binding [*db-spec* (db/db-spec file)]
+                  (with-open [conn (db/get-connection *db-spec*)]
+                    (binding [*source-id* (insert-a-source! conn)]
+                             (f))))
+         (finally
+           (doseq [suffix ["" "-wal" "-shm"]
+                   :let   [target (io/file (str file suffix))]]
+             (io/delete-file target silently))))))
 
 (defn- respond!
   "Ask handler-fn for [status body headers] and send it back. The exchange is
@@ -85,10 +85,10 @@
   (let [[status body headers] (handler-fn exchange)
         no-body               -1
         length                (or (some-> body .getBytes count) no-body)]
-    (doseq [[k v] headers] (-> exchange .getResponseHeaders (.add k v)))
-    (.sendResponseHeaders exchange status length)
-    (when body
-      (with-open [out (.getResponseBody exchange)] (.write out (.getBytes body))))))
+       (doseq [[k v] headers] (-> exchange .getResponseHeaders (.add k v)))
+       (.sendResponseHeaders exchange status length)
+       (when body
+         (with-open [out (.getResponseBody exchange)] (.write out (.getBytes body))))))
 
 (defn- with-server
   "Start a server on a free local port, hand its URL to f, and stop it
@@ -110,11 +110,11 @@
         ;; In Java:
         ;;   new HttpHandler() { public void handle(HttpExchange e) { ... } }
         handler         (reify HttpHandler (handle [_this exchange] (respond! exchange handler-fn)))]
-    (.createContext server path handler)
-    (.start server)
-    (try
-      (f (str "http://" loopback ":" (-> server .getAddress .getPort) "/page"))
-      (finally (.stop server no-wait)))))
+       (.createContext server path handler)
+       (.start server)
+       (try
+         (f (str "http://" loopback ":" (-> server .getAddress .getPort) "/page"))
+         (finally (.stop server no-wait)))))
 
 (defn- get-fetch-state!
   "The fetch_state row for a URL.
@@ -187,8 +187,8 @@
   Returns what fetch-corpus! returns."
   [definition versions dir]
   (binding [fetch/*pause-ms* 0]
-    (with-open [conn (db/get-connection *db-spec*)]
-      (fetch/fetch-corpus! conn {:definition definition :versions versions :dir dir}))))
+           (with-open [conn (db/get-connection *db-spec*)]
+             (fetch/fetch-corpus! conn {:definition definition :versions versions :dir dir}))))
 
 (defn- with-temp-dir
   "A fresh directory for downloads, removed with its contents afterwards.
@@ -199,12 +199,12 @@
   [f]
   (let [dir      (.toFile (Files/createTempDirectory "liesl-fetch-test-" (make-array FileAttribute 0)))
         silently true]
-    (try
-      (f dir)
-      (finally
-        ;; file-seq lists a directory before its contents; reversed, children go first.
-        (doseq [file (reverse (file-seq dir))]
-          (io/delete-file file silently))))))
+       (try
+         (f dir)
+         (finally
+           ;; file-seq lists a directory before its contents; reversed, children go first.
+           (doseq [file (reverse (file-seq dir))]
+             (io/delete-file file silently))))))
 
 (use-fixtures :each with-temp-db)
 
@@ -212,193 +212,193 @@
   (with-server
     (fn [_] [200 "hello" {"ETag" "\"v1\"" "Last-Modified" "Wed, 01 Jan 2025 00:00:00 GMT"}])
     (fn [url]
-      (is (= {:status 200 :body "hello"} (fetch! url)))
-      (let [state (get-fetch-state! url)]
-        (is (= "\"v1\""                        (:etag          state)))
-        (is (= "Wed, 01 Jan 2025 00:00:00 GMT" (:last_modified state)))
-        (is (= 0                               (:failures      state)))
-        (is (some?                             (:content_hash  state)) "the body must be hashed")))))
+        (is (= {:status 200 :body "hello"} (fetch! url)))
+        (let [state (get-fetch-state! url)]
+             (is (= "\"v1\""                        (:etag          state)))
+             (is (= "Wed, 01 Jan 2025 00:00:00 GMT" (:last_modified state)))
+             (is (= 0                               (:failures      state)))
+             (is (some?                             (:content_hash  state)) "the body must be hashed")))))
 
 (deftest a-second-fetch-sends-the-validator-and-accepts-304
   (let [seen (atom [])]
-    (with-server
-      (fn [exchange]
-        (let [if-none-match (.getFirst (.getRequestHeaders exchange) "If-None-Match")]
-          (swap! seen conj if-none-match)
-          (if (= "\"v1\"" if-none-match)
-            [304 nil {}]
-            [200 "hello" {"ETag" "\"v1\""}])))
-      (fn [url]
-        (is (= {:status 200 :body "hello"} (fetch! url)) "the first fetch has no validator to send, so the body comes back")
-        (is (= {:status 304}               (fetch! url)) "an unchanged page returns no body")
-        ;; Bound after the fetches: before them there is no row to read.
-        (let [state (get-fetch-state! url)
-              etag  (:etag state)]
-          (is (= [nil "\"v1\""] @seen) "the first request carries no validator, the second carries the etag")
-          (is (= "\"v1\""       etag)  "a 304 must not erase the etag it was answered with"))))))
+       (with-server
+         (fn [exchange]
+             (let [if-none-match (.getFirst (.getRequestHeaders exchange) "If-None-Match")]
+                  (swap! seen conj if-none-match)
+                  (if (= "\"v1\"" if-none-match)
+                    [304 nil {}]
+                    [200 "hello" {"ETag" "\"v1\""}])))
+         (fn [url]
+             (is (= {:status 200 :body "hello"} (fetch! url)) "the first fetch has no validator to send, so the body comes back")
+             (is (= {:status 304}               (fetch! url)) "an unchanged page returns no body")
+             ;; Bound after the fetches: before them there is no row to read.
+             (let [state (get-fetch-state! url)
+                   etag  (:etag state)]
+                  (is (= [nil "\"v1\""] @seen) "the first request carries no validator, the second carries the etag")
+                  (is (= "\"v1\""       etag)  "a 304 must not erase the etag it was answered with"))))))
 
 (deftest every-request-names-liesl
   (let [seen (atom nil)]
-    (with-server
-      (fn [exchange]
-        (reset! seen (.getFirst (.getRequestHeaders exchange) "User-Agent"))
-        [200 "hello" {}])
-      (fn [url]
-        ;; Called for the request it makes, not for what it returns: the
-        ;; User-Agent is only visible from the server's side.
-        (fetch! url)
-        (is (re-matches #"liesl/\d+\.\d+\.\d+ \(\+https://github\.com/jwa-software/liesl\)" @seen)
-            "the server operator must be able to tell who is crawling them")))))
+       (with-server
+         (fn [exchange]
+             (reset! seen (.getFirst (.getRequestHeaders exchange) "User-Agent"))
+             [200 "hello" {}])
+         (fn [url]
+             ;; Called for the request it makes, not for what it returns: the
+             ;; User-Agent is only visible from the server's side.
+             (fetch! url)
+             (is (re-matches #"liesl/\d+\.\d+\.\d+ \(\+https://github\.com/jwa-software/liesl\)" @seen)
+                 "the server operator must be able to tell who is crawling them")))))
 
 (deftest a-failure-is-counted-and-does-not-throw
   (with-server
     (fn [_] [404 "gone" {}])
     (fn [url]
-      (is (= {:status 404} (fetch! url))                      "an HTTP status is a result, not an exception")
-      (is (= 1             (:failures (get-fetch-state! url))) "a 4xx increments the failure count, so a caller can back off")
-      (is (= 404           (:status (get-fetch-state! url)))   "the status is kept as it came back, not flattened to a flag"))))
+        (is (= {:status 404} (fetch! url))                      "an HTTP status is a result, not an exception")
+        (is (= 1             (:failures (get-fetch-state! url))) "a 4xx increments the failure count, so a caller can back off")
+        (is (= 404           (:status (get-fetch-state! url)))   "the status is kept as it came back, not flattened to a flag"))))
 
 (deftest a-download-lands-in-the-file-and-is-hashed
   (with-temp-dir
     (fn [dir]
-      (with-server
-        (fn [_] [200 "archive bytes" {}])
-        (fn [url]
-          (let [target (io/file dir "archive.bin")]
-            (is (= {:status 200 :file target} (fetch! url :as :file :opts {:file target})) "the result names the file instead of carrying the body")
-            (is (= "archive bytes" (slurp target))                         "the body went to the file")
-            (is (some? (:content_hash (get-fetch-state! url)))             "the file must be hashed")
-            (is (= ["archive.bin"] (vec (.list dir)))                      "no temp file is left beside it")))))))
+        (with-server
+          (fn [_] [200 "archive bytes" {}])
+          (fn [url]
+              (let [target (io/file dir "archive.bin")]
+                   (is (= {:status 200 :file target} (fetch! url :as :file :opts {:file target})) "the result names the file instead of carrying the body")
+                   (is (= "archive bytes" (slurp target))                         "the body went to the file")
+                   (is (some? (:content_hash (get-fetch-state! url)))             "the file must be hashed")
+                   (is (= ["archive.bin"] (vec (.list dir)))                      "no temp file is left beside it")))))))
 
 (deftest a-304-leaves-the-previous-download-intact
   (with-temp-dir
     (fn [dir]
-      (with-server
-        (fn [exchange]
-          (if (.getFirst (.getRequestHeaders exchange) "If-None-Match")
-            [304 nil {}]
-            [200 "first body" {"ETag" "\"v1\""}]))
-        (fn [url]
-          (let [target (io/file dir "archive.bin")]
-            (fetch! url :as :file :opts {:file target})
-            (is (= {:status 304} (fetch! url :as :file :opts {:file target})) "the second fetch carries the etag and gets no body")
-            (is (= "first body" (slurp target))                 "a 304 has no body, so the first download must survive")
-            (is (= ["archive.bin"] (vec (.list dir)))           "and no temp file is left beside it")))))))
+        (with-server
+          (fn [exchange]
+              (if (.getFirst (.getRequestHeaders exchange) "If-None-Match")
+                [304 nil {}]
+                [200 "first body" {"ETag" "\"v1\""}]))
+          (fn [url]
+              (let [target (io/file dir "archive.bin")]
+                   (fetch! url :as :file :opts {:file target})
+                   (is (= {:status 304} (fetch! url :as :file :opts {:file target})) "the second fetch carries the etag and gets no body")
+                   (is (= "first body" (slurp target))                 "a 304 has no body, so the first download must survive")
+                   (is (= ["archive.bin"] (vec (.list dir)))           "and no temp file is left beside it")))))))
 
 (deftest a-failed-download-leaves-no-file-behind
   (with-temp-dir
     (fn [dir]
-      (with-server
-        (fn [_] [404 "gone" {}])
-        (fn [url]
-          (let [target (io/file dir "archive.bin")]
-            (is (= {:status 404} (fetch! url :as :file :opts {:file target})) "an HTTP status is a result, not an exception")
-            (is (empty? (vec (.list dir)))                      "neither the target nor a temp file may exist")))))))
+        (with-server
+          (fn [_] [404 "gone" {}])
+          (fn [url]
+              (let [target (io/file dir "archive.bin")]
+                   (is (= {:status 404} (fetch! url :as :file :opts {:file target})) "an HTTP status is a result, not an exception")
+                   (is (empty? (vec (.list dir)))                      "neither the target nor a temp file may exist")))))))
 
 (deftest an-unknown-as-is-refused-before-any-request
   ;; No server: the check runs before anything is sent, so the URL is never touched.
   (let [info (try (fetch! "http://127.0.0.1/never-requested" :as :pdf) nil
                   (catch clojure.lang.ExceptionInfo e (ex-data e)))]
-    (is (some? info) "the fetch must fail")
-    (is (= {:as :pdf :allowed #{:string :file}} info) "the error names the value and what would have been accepted")))
+       (is (some? info) "the fetch must fail")
+       (is (= {:as :pdf :allowed #{:string :file}} info) "the error names the value and what would have been accepted")))
 
 (deftest an-archive-lands-under-corpus-name-and-version
   (with-temp-dir
     (fn [dir]
-      (let [seen (atom nil)]
-        (with-server
-          (fn [exchange]
-            (reset! seen (.getPath (.getRequestURI exchange)))
-            [200 "zip bytes" {}])
-          (fn [url]
-            (let [source (insert-an-archive-source! (str url "/") {:version-path "{version}/" :archive "spec.zip"})
-                  target (io/file dir "test" "archives" "R4" "spec.zip")]
-              (is (= {:status 200 :file target} (archive! source "R4" dir)) "the file sits at dir/corpus/name/version/archive")
-              (is (= "/page/R4/spec.zip" @seen)                           "the URL is base_url, then the version path, then the archive")
-              (is (= "zip bytes" (slurp target))                          "the body went to the file")
-              (is (= (:id source) (:source_id (get-fetch-state! (str url "/R4/spec.zip"))))
-                  "the fetch_state row belongs to the archive's source, not the fixture's"))))))))
+        (let [seen (atom nil)]
+             (with-server
+               (fn [exchange]
+                   (reset! seen (.getPath (.getRequestURI exchange)))
+                   [200 "zip bytes" {}])
+               (fn [url]
+                   (let [source (insert-an-archive-source! (str url "/") {:version-path "{version}/" :archive "spec.zip"})
+                         target (io/file dir "test" "archives" "R4" "spec.zip")]
+                        (is (= {:status 200 :file target} (archive! source "R4" dir)) "the file sits at dir/corpus/name/version/archive")
+                        (is (= "/page/R4/spec.zip" @seen)                           "the URL is base_url, then the version path, then the archive")
+                        (is (= "zip bytes" (slurp target))                          "the body went to the file")
+                        (is (= (:id source) (:source_id (get-fetch-state! (str url "/R4/spec.zip"))))
+                            "the fetch_state row belongs to the archive's source, not the fixture's"))))))))
 
 (deftest a-second-fetch-of-an-archive-is-a-304
   (with-temp-dir
     (fn [dir]
-      (with-server
-        (fn [exchange]
-          (if (.getFirst (.getRequestHeaders exchange) "If-None-Match")
-            [304 nil {}]
-            [200 "zip bytes" {"ETag" "\"v1\""}]))
-        (fn [url]
-          (let [source (insert-an-archive-source! (str url "/") {:version-path "{version}/" :archive "spec.zip"})]
-            (archive! source "R4" dir)
-            (is (= {:status 304} (archive! source "R4" dir))                                   "the stored etag turns the second fetch into a 304")
-            (is (= "zip bytes" (slurp (io/file dir "test" "archives" "R4" "spec.zip"))) "and the first download survives")))))))
+        (with-server
+          (fn [exchange]
+              (if (.getFirst (.getRequestHeaders exchange) "If-None-Match")
+                [304 nil {}]
+                [200 "zip bytes" {"ETag" "\"v1\""}]))
+          (fn [url]
+              (let [source (insert-an-archive-source! (str url "/") {:version-path "{version}/" :archive "spec.zip"})]
+                   (archive! source "R4" dir)
+                   (is (= {:status 304} (archive! source "R4" dir))                                   "the stored etag turns the second fetch into a 304")
+                   (is (= "zip bytes" (slurp (io/file dir "test" "archives" "R4" "spec.zip"))) "and the first download survives")))))))
 
 (deftest a-source-without-an-archive-is-refused
   ;; No server: the config is checked before anything is sent.
   (with-temp-dir
     (fn [dir]
-      (let [source  (insert-an-archive-source! "http://127.0.0.1/" {:version-path "{version}/"})
-            message (try (archive! source "R4" dir) nil
-                         (catch clojure.lang.ExceptionInfo e (ex-message e)))]
-        (is (some? message)                              "the fetch must fail")
-        (is (= "archives config needs :archive" message) "the error names the source and the missing key")))))
+        (let [source  (insert-an-archive-source! "http://127.0.0.1/" {:version-path "{version}/"})
+              message (try (archive! source "R4" dir) nil
+                           (catch clojure.lang.ExceptionInfo e (ex-message e)))]
+             (is (some? message)                              "the fetch must fail")
+             (is (= "archives config needs :archive" message) "the error names the source and the missing key")))))
 
 (deftest each-version-is-fetched-in-order
   (with-temp-dir
     (fn [dir]
-      (let [seen (atom [])]
-        (with-server
-          (fn [exchange]
-            (swap! seen conj (.getPath (.getRequestURI exchange)))
-            [200 "zip bytes" {}])
-          (fn [url]
-            (let [source  (insert-an-archive-source! (str url "/") {:version-path "{version}/" :archive "spec.zip"})
-                  results (binding [fetch/*pause-ms* 0]
-                            (versions! source ["STU3" "R4"] dir))]
-              (is (= ["STU3" "R4"] (map :version results))                      "one result per version, in the order given")
-              (is (= [200 200]     (map :status  results))                      "each carries fetch-archive!'s result")
-              (is (= ["/page/STU3/spec.zip" "/page/R4/spec.zip"] @seen)         "requests go out in version order")
-              (is (.isFile (io/file dir "test" "archives" "R4" "spec.zip"))     "each version lands in its own directory"))))))))
+        (let [seen (atom [])]
+             (with-server
+               (fn [exchange]
+                   (swap! seen conj (.getPath (.getRequestURI exchange)))
+                   [200 "zip bytes" {}])
+               (fn [url]
+                   (let [source  (insert-an-archive-source! (str url "/") {:version-path "{version}/" :archive "spec.zip"})
+                         results (binding [fetch/*pause-ms* 0]
+                                          (versions! source ["STU3" "R4"] dir))]
+                        (is (= ["STU3" "R4"] (map :version results))                      "one result per version, in the order given")
+                        (is (= [200 200]     (map :status  results))                      "each carries fetch-archive!'s result")
+                        (is (= ["/page/STU3/spec.zip" "/page/R4/spec.zip"] @seen)         "requests go out in version order")
+                        (is (.isFile (io/file dir "test" "archives" "R4" "spec.zip"))     "each version lands in its own directory"))))))))
 
 (deftest the-loop-pauses-between-versions
   (with-temp-dir
     (fn [dir]
-      (with-server
-        (fn [_] [200 "zip bytes" {}])
-        (fn [url]
-          (let [source  (insert-an-archive-source! (str url "/") {:version-path "{version}/" :archive "spec.zip"})
-                started (System/currentTimeMillis)]
-            (binding [fetch/*pause-ms* 100]
-              (versions! source ["R4" "R5"] dir))
-            (is (>= (- (System/currentTimeMillis) started) 100) "two versions mean one pause of *pause-ms*")))))))
+        (with-server
+          (fn [_] [200 "zip bytes" {}])
+          (fn [url]
+              (let [source  (insert-an-archive-source! (str url "/") {:version-path "{version}/" :archive "spec.zip"})
+                    started (System/currentTimeMillis)]
+                   (binding [fetch/*pause-ms* 100]
+                            (versions! source ["R4" "R5"] dir))
+                   (is (>= (- (System/currentTimeMillis) started) 100) "two versions mean one pause of *pause-ms*")))))))
 
 (deftest only-a-source-naming-an-archive-is-an-archive-source
   ;; #' reaches the private function through its var, so the test can call it
   ;; without making it public for everyone else.
   (let [archive-source? #'fetch/archive-source?]
-    (is (true?  (archive-source? {:config "{:version-path \"{version}/\" :archive \"spec.zip\"}"})) "an :archive in the config")
-    (is (false? (archive-source? {:config "{:clone :shallow}"}))                                    "a config without one")
-    (is (false? (archive-source? {:config nil}))                                                    "no config at all")))
+       (is (true?  (archive-source? {:config "{:version-path \"{version}/\" :archive \"spec.zip\"}"})) "an :archive in the config")
+       (is (false? (archive-source? {:config "{:clone :shallow}"}))                                    "a config without one")
+       (is (false? (archive-source? {:config nil}))                                                    "no config at all")))
 
 (deftest a-corpus-fetches-its-archive-sources-and-skips-the-rest
   (with-temp-dir
     (fn [dir]
-      (with-server
-        (fn [_] [200 "zip bytes" {}])
-        (fn [url]
-          (let [results  (corpus! (archive-definition (str url "/")) nil dir)
-                archives (get results "archives")]
-            (is (= #{"archives"} (set (keys results)))                    "only the source with an :archive is fetched")
-            (is (= ["R4" "R5"] (map :version archives))                   "every version the definition declares, in its order")
-            (is (.isFile (io/file dir "test" "archives" "R5" "spec.zip")) "and each lands in its own directory")))))))
+        (with-server
+          (fn [_] [200 "zip bytes" {}])
+          (fn [url]
+              (let [results  (corpus! (archive-definition (str url "/")) nil dir)
+                    archives (get results "archives")]
+                   (is (= #{"archives"} (set (keys results)))                    "only the source with an :archive is fetched")
+                   (is (= ["R4" "R5"] (map :version archives))                   "every version the definition declares, in its order")
+                   (is (.isFile (io/file dir "test" "archives" "R5" "spec.zip")) "and each lands in its own directory")))))))
 
 (deftest versions-given-to-fetch-corpus-override-the-definition
   (with-temp-dir
     (fn [dir]
-      (with-server
-        (fn [_] [200 "zip bytes" {}])
-        (fn [url]
-          (let [results  (corpus! (archive-definition (str url "/")) ["R4"] dir)
-                archives (get results "archives")]
-            (is (= ["R4"] (map :version archives))                    "one version asked for, one fetched")
-            (is (not (.exists (io/file dir "test" "archives" "R5")))  "the other is not touched")))))))
+        (with-server
+          (fn [_] [200 "zip bytes" {}])
+          (fn [url]
+              (let [results  (corpus! (archive-definition (str url "/")) ["R4"] dir)
+                    archives (get results "archives")]
+                   (is (= ["R4"] (map :version archives))                    "one version asked for, one fetched")
+                   (is (not (.exists (io/file dir "test" "archives" "R5")))  "the other is not touched")))))))
