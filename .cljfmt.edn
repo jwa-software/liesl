@@ -1,0 +1,29 @@
+;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
+
+;; Formatting rules, read by clj -M:cljfmt and by clojure-lsp, which finds this
+;; file on its own. Defaults are written out where a change would reformat the
+;; tree, so a new cljfmt release cannot do that silently.
+{:paths ["src" "test" "corpora"]
+
+ ;; Extra spaces inside a line are column alignment done by hand; keep them.
+ :remove-multiple-non-indenting-spaces? false
+
+ ;; Two spaces for arguments that start on the line after the function name,
+ ;; as Cursive does; one space when the first thing in the list is a data
+ ;; structure.
+ :function-arguments-indentation :cursive
+
+ ;; Requires and imports in alphabetical order.
+ :sort-ns-references? true
+
+ ;; A whole-line ;; comment moves to the column of the code around it.
+ :indent-line-comments? true
+
+ ;; let, binding and fn: the body sits under the binding or argument vector,
+ ;; at the same column, instead of two spaces in -- that is, formatted like
+ ;; any function call. cljfmt has no way to say "no rule", so the rule names
+ ;; a depth no form reaches, which comes to the same thing; [:inner 1] would
+ ;; also change the indentation of forms inside the body.
+ :extra-indents {let     [[:inner 99]]
+                 binding [[:inner 99]]
+                 fn      [[:inner 99]]}}
