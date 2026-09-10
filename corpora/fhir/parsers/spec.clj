@@ -1,14 +1,19 @@
 ;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
 
 (ns fhir.parsers.spec
-  "Reads the pages of one published FHIR version out of its fhir-spec.zip.
+  "Reads the pages of one published FHIR version out of its fhir-spec.zip, and
+  turns a page into the text a document row holds.
 
   Each version's archive keeps its pages under a directory of its own choosing,
   with backslash separators where it was built on Windows. Most of its HTML is
   the same page rendered as JSON, XML or Turtle; only the prose pages are worth
-  keeping."
+  keeping. Every prose page has the same skeleton around one content column,
+  and the same boilerplate inside it, in all four versions."
   (:require [clojure.string :as str])
-  (:import [java.util.zip ZipEntry ZipFile]))
+  (:import [java.util.zip ZipEntry ZipFile]
+           [org.jsoup Jsoup]
+           [org.jsoup.nodes Document Element TextNode]
+           [org.jsoup.select NodeVisitor]))
 
 ;; The directory each version keeps its pages under, as a prefix of the entry
 ;; name. STU3 and R4 were built on Windows, R4B and R5 on a Mac, each with a
@@ -22,6 +27,23 @@
 
 ;; The same page rendered in another syntax, e.g. patient.json.html.
 (def ^:private rendered-view #"\.(json|xml|ttl|shex|sch|canonical)\.html$")
+
+;; The one element holding a page's content. A file without it is not a page:
+;; a "Not generated in this build" stub, or a fragment the tooling left behind.
+(def ^:private ^String content-column "div.col-12")
+
+;; What the content column carries that is not the page's own text: the
+;; "downloaded copy" notice, the page family's tab strip (Content, Examples,
+;; Detailed Descriptions, ...), the work group and maturity tables, the ANSI
+;; box, the self-link icon after each heading and the UML diagram, and the
+;; structure views (element table, UML, XML, JSON, Turtle, and all of them once
+;; more). The element table is on each resource's own -definitions.html, so
+;; dropping the views loses nothing.
+(def ^:private ^String boilerplate
+  "p#publish-box, ul.nav-tabs, table.colsn, table.colsi, table.none, svg, div#tabs")
+
+;; Every title ends in the version's build number: "Patient - FHIR v4.0.1".
+(def ^:private title-suffix #" - FHIR v[\d.]+$")
 
 ;; ---- Pure helpers: no I/O ----
 
@@ -58,6 +80,45 @@
          (let [path (subs name (count dir))]
               {:path path :url (str url-prefix path) :entry entry}))))
 
+(defn- page-title
+  "The page's title, without the version's build number.
+
+  doc  the parsed page
+
+  Returns e.g. \"Patient\" for a head title of \"Patient - FHIR v4.0.1\", or nil
+  when the head has no title. It is the first title that says anything: one
+  page carries an empty title element before its real one."
+  [^Document doc]
+  (let [titles (map (fn [^Element title] (.text title))
+                    (.select doc "head > title"))]
+       (when-let [title (first (remove str/blank? titles))]
+         (str/replace title title-suffix ""))))
+
+(defn- block-text
+  "An element's text, one line per block-level element.
+
+  element  the content column, boilerplate already removed
+
+  Returns the lines joined by newlines, each trimmed and its whitespace
+  collapsed, blank lines dropped: a heading, a paragraph, a list item or a
+  table cell per line."
+  [^Element element]
+  (let [out (StringBuilder.)]
+       ;; Text nodes are appended as they come; leaving a block-level element
+       ;; ends the line. So a cell holding a paragraph gives one line, not two.
+       (.traverse element
+                  (reify NodeVisitor
+                    (head [_ node _]
+                      (when (instance? TextNode node)
+                        (.append out (.text ^TextNode node))))
+                    (tail [_ node _]
+                      (when (and (instance? Element node) (.isBlock ^Element node))
+                        (.append out "\n")))))
+       (->> (str/split-lines (str out))
+            (map #(str/replace (str/trim %) #"\s+" " "))
+            (remove str/blank?)
+            (str/join "\n"))))
+
 ;; ---- Public ----
 
 (defn pages
@@ -92,3 +153,24 @@
   (let [^ZipEntry entry (:entry page)]
        (with-open [in (.getInputStream archive entry)]
          (slurp in :encoding "UTF-8"))))
+
+(defn page->document
+  "What a page contributes to a document row: its URL, title and body.
+
+  page  one map from pages
+  html  the page's content, from page-html
+
+  Returns
+  {:url   <the page's url>
+   :title <the head title without the version's build number, e.g. \"Patient\">
+   :body  <the content column's text, one line per block-level element>}
+  nil  a file without a content column: a questionnaire stub, or a fragment
+       the tooling left under html/"
+  [page ^String html]
+  (let [doc    (Jsoup/parse html)
+        column (.selectFirst doc content-column)]
+       (when column
+         (.remove (.select column boilerplate))
+         {:url   (:url page)
+          :title (page-title doc)
+          :body  (block-text column)})))
