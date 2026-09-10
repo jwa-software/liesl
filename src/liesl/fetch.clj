@@ -8,6 +8,8 @@
   (:require [clojure.edn          :as edn]
             [clojure.java.io      :as io]
             [clojure.string       :as str]
+            [liesl.corpus         :as corpus]
+            [liesl.db             :as db]
             [liesl.version        :as version]
             [next.jdbc            :as jdbc]
             [next.jdbc.result-set :as rs])
@@ -23,14 +25,19 @@
 
 (def ^:private request-timeout (Duration/ofSeconds 30))
 
-;; The pause between two consecutive requests to the same server.
-(def ^:dynamic *pause-ms* 1000)
+;; Under the data directory; archives land in <archives>/<corpus>/<source>/<version>/.
+(def ^:private archives-dir-name "archives")
 
 ;; An HttpClient owns a thread pool, and a plain def would create it the moment
 ;; this namespace is required. delay is lazy evaluation, not a duration: the
 ;; body runs at the first @client below, once, and every later @ gets that same
 ;; client back.
 (def ^:private client (delay (HttpClient/newHttpClient)))
+
+;; The pause between two consecutive requests to the same server.
+(def ^:dynamic *pause-ms* 1000)
+
+;; ---- Pure helpers: no I/O ----
 
 (defn- sha-256
   "Digest of a stream, read in chunks so a large file never has to fit in memory.
@@ -46,19 +53,6 @@
         (.update digest buffer 0 n)
         (recur (.read in buffer))))
     (.digest digest)))
-
-(defn- last-fetch-state!
-  "The validators the last fetch of this URL left behind.
-
-  conn  an open connection
-  url   the fetch_state key
-
-  Returns {:etag ... :last_modified ...}, either value possibly nil, or nil
-  when the URL has never been fetched."
-  [conn url]
-  (jdbc/execute-one! conn
-                     ["SELECT etag, last_modified FROM fetch_state WHERE url = ?" url]
-                     {:builder-fn rs/as-unqualified-lower-maps}))
 
 (defn- build-request
   "A GET carrying whatever validators the last fetch left behind. With neither,
@@ -88,6 +82,30 @@
   Returns its first value, or nil when absent."
   ^String [^HttpResponse response ^String name]
   (-> response .headers (.firstValue name) (.orElse nil)))
+
+(defn- archive-source?
+  "Whether a source is published as an archive.
+
+  source  a source row; its config is EDN text
+
+  Returns true when the config names an :archive."
+  [source]
+  (boolean (:archive (some-> (:config source) edn/read-string))))
+
+;; ---- Database ----
+
+(defn- last-fetch-state!
+  "The validators the last fetch of this URL left behind.
+
+  conn  an open connection
+  url   the fetch_state key
+
+  Returns {:etag ... :last_modified ...}, either value possibly nil, or nil
+  when the URL has never been fetched."
+  [conn url]
+  (jdbc/execute-one! conn
+                     ["SELECT etag, last_modified FROM fetch_state WHERE url = ?" url]
+                     {:builder-fn rs/as-unqualified-lower-maps}))
 
 (defn- upsert!
   "Write the row back. next_fetch is the caller's decision, not ours -- how soon
@@ -120,6 +138,8 @@
          "  failures      = CASE WHEN excluded.failures > 0 "
          "                       THEN fetch_state.failures + 1 ELSE 0 END")
     url source-id etag last-modified content-hash (str (Instant/now)) next-fetch status (if failed? 1 0)]))
+
+;; ---- Network and time ----
 
 (defn- fetch-to-string!
   "Send the request and keep the response body in memory.
@@ -179,6 +199,9 @@
   []
   (Thread/sleep (long *pause-ms*)))
 
+;; ---- Public, each built on the one above: a request, an archive, a version
+;; ---- list, a corpus, the command ----
+
 (defn fetch-url!
   "Fetch one URL, conditionally, and update its fetch_state row.
 
@@ -227,8 +250,10 @@
   version   which version, e.g. \"R4\"; replaces {version} in the config's path
   dir       the directory all archives live under
 
-  Returns what fetch-url! returns; on 200 the :file is
-  dir/<corpus>/<source name>/<version>/<archive>."
+  Returns
+  {:status 200 :file <dir>/<corpus>/<source name>/<version>/<archive>}  new content, written there
+  {:status 304}                                                         not modified since the last fetch
+  {:status <n>}                                                         anything else"
   [conn {:keys [source version dir]}]
   (let [{:keys [version-path archive]} (some-> (:config source) edn/read-string)]
     (when-not version-path (throw (ex-info (format "%s config needs :version-path" (:name source)) {})))
@@ -250,8 +275,9 @@
   versions  the version strings, fetched in this order
   dir       the directory all archives live under
 
-  Returns a vector with one map per version, in order: fetch-archive!'s
-  result with :version added."
+  Returns
+  [{:version <version> :status <status> :file <file>}   ; :file only on 200
+   ...one map per version, in the order given...]"
   [conn {:keys [source versions dir]}]
   (into []
         (map-indexed (fn [i version]
@@ -260,3 +286,43 @@
                        (assoc (fetch-archive! conn {:source source :version version :dir dir})
                               :version version)))
         versions))
+
+(defn fetch-corpus!
+  "Write a corpus's sources to the database and fetch every archive source,
+  version by version. A source whose config names no :archive is skipped.
+
+  conn        an open connection
+  definition  what corpus/load returned
+  versions    the version strings to fetch; absent means the definition's :versions
+  dir         the directory all archives live under
+
+  Returns
+  {<source name> [{:version <version> :status <status> :file <file>}   ; :file only on 200
+                  ...one map per version, in the order fetched...]
+   ...one entry per source whose config has an :archive...}"
+  [conn {:keys [definition versions dir]}]
+  (let [versions (or versions (:versions definition))
+        sources  (corpus/upsert-sources! conn definition)]
+    (into {}
+          (comp (filter archive-source?)
+                (map (fn [source] [(:name source) (fetch-versions! conn {:source source :versions versions :dir dir})])))
+          sources)))
+
+(defn ^:exec-fn fetch
+  "Fetch a corpus's archives into data/archives. `clj -X:fetch :corpus fhir`,
+  optionally `:versions '[\"R4\"]'` and `:pause-ms 1000`. Takes the exec map
+  because that is what -X passes.
+
+  corpus    the corpus name, as a symbol or string
+  versions  the version strings; absent means every version the corpus declares
+  pause-ms  the pause between requests; absent means *pause-ms* as defined
+
+  Prints one line per version fetched. Returns nil, because -X discards it."
+  [{:keys [corpus versions pause-ms]}]
+  (binding [*pause-ms* (or pause-ms *pause-ms*)]
+    (with-open [conn (db/get-connection)]
+      (doseq [[source-name results] (fetch-corpus! conn {:definition (corpus/load (name corpus))
+                                                         :versions   versions
+                                                         :dir        (io/file (db/data-dir) archives-dir-name)})
+              {:keys [version status file]} results]
+        (println source-name version status (str file))))))

@@ -81,7 +81,14 @@
   corpus   the corpus name, from a loaded definition
   sources  its :sources vector
 
-  Returns the rows in definition order, each with its id."
+  Returns
+  [{:id       <integer, the row id>
+    :corpus   <string>
+    :name     <string>
+    :kind     <string>
+    :base_url <string>
+    :config   <string of EDN, or nil>}
+   ...one row per source, in definition order...]"
   [conn {:keys [corpus sources]}]
   (mapv (fn [source]
           (jdbc/execute-one!

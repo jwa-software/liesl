@@ -47,4 +47,9 @@
   ;; clj -X:pending-list  print the migrations that have not run
   :migrate      {:exec-fn liesl.db/migrate      :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}
   :rollback     {:exec-fn liesl.db/rollback     :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}
-  :pending-list {:exec-fn liesl.db/pending-list :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}}}
+  :pending-list {:exec-fn liesl.db/pending-list :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}
+
+  ;; clj -X:fetch :corpus fhir                       fetch every version of every archive source
+  ;; clj -X:fetch :corpus fhir :versions '["R4"]'    one version only
+  ;; clj -X:fetch :corpus fhir :pause-ms 2000        two seconds between requests instead of one
+  :fetch        {:exec-fn liesl.fetch/fetch       :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}}}

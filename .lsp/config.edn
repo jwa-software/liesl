@@ -1,0 +1,5 @@
+;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
+
+;; A function marked ^:exec-fn is a `clj -X` entry point: its only caller is
+;; an :exec-fn line in deps.edn, which the linter does not read.
+{:linters {:clojure-lsp/unused-public-var {:exclude-when-contains-meta #{:exec-fn}}}}
