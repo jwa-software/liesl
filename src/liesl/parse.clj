@@ -3,7 +3,7 @@
 (ns liesl.parse
   "Turns fetched archives into document rows, through the parser each source
   names in its config. This is the engine's only way to reach a corpus's
-  parser: a symbol in corpus.edn, resolved by name."
+  parser: a symbol in `corpus.edn`, resolved by name."
   (:require [clojure.edn    :as edn]
             [liesl.corpus   :as corpus]
             [liesl.db       :as db]
@@ -19,7 +19,7 @@
 
   source  a source row; its config is EDN text
 
-  Returns the symbol under :parser, e.g. fhir.parsers.spec/documents, or nil."
+  Returns the symbol under :parser, e.g. `fhir.parsers.spec/documents`, or nil."
   [source]
   (:parser (some-> (:config source) edn/read-string)))
 
@@ -31,7 +31,7 @@
   source  a source row whose config names a :parser
 
   Returns the function. A namespace that cannot be loaded is the loader's own
-  error; a symbol naming nothing in a loaded namespace is an ex-info naming
+  error; a symbol naming nothing in a loaded namespace is an `ex-info` naming
   the symbol."
   [source]
   (let [sym (parser-symbol source)]
@@ -47,7 +47,7 @@
   version in one transaction.
 
   conn      an open connection
-  source    a source row, as upsert-sources! returns it; its config names the :parser
+  source    a source row, as `upsert-sources!` returns it; its config names the :parser
   versions  the version strings, parsed in this order
   dir       the directory all archives live under
 
@@ -55,7 +55,7 @@
   [{:version <version> :documents <how many rows were written>}
    ...one map per version, in the order given...]
 
-  A version whose archive is not under dir is an ex-info naming the file:
+  A version whose archive is not under `dir` is an `ex-info` naming the file:
   fetching comes first."
   [conn {:keys [source versions dir]}]
   (let [parse (parser source)]
@@ -76,7 +76,7 @@
   config names a :parser, version by version. The rest are skipped.
 
   conn        an open connection
-  definition  what corpus/load returned
+  definition  what `corpus/load` returned
   versions    the version strings to parse; absent means the definition's :versions
   dir         the directory all archives live under
 
@@ -95,12 +95,12 @@
 (defn ^:exec-fn parse
   "Parse a corpus's fetched archives into document rows. `clj -X:parse :corpus
   fhir`, optionally `:versions '[\"R4\"]'`. Takes the exec map because that is
-  what -X passes.
+  what `-X` passes.
 
   corpus    the corpus name, as a symbol or string
   versions  the version strings; absent means every version the corpus declares
 
-  Prints one line per version parsed. Returns nil, because -X discards it."
+  Prints one line per version parsed. Returns nil, because `-X` discards it."
   [{:keys [corpus versions]}]
   (with-open [conn (db/get-connection)]
     (doseq [[source-name results] (parse-corpus! conn {:definition (corpus/load (name corpus))
