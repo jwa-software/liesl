@@ -68,8 +68,8 @@
            (jdbc/execute-one! tx
                               ["UPDATE document SET indexed_at = ? WHERE id = ?" now id])))))
 
-;; ---- Public, each built on the one above: where the index lives, open and
-;; ---- close, the unindexed rows, the command ----
+;; ---- Public, each built on the one above: where the index lives, the
+;; ---- analyzer, open and close, the unindexed rows, the command ----
 
 (defn index-dir
   "The directory the index lives in: `data/index`.
@@ -77,6 +77,15 @@
   Returns it as a `File`."
   ^File []
   (io/file (db/data-dir) index-dir-name))
+
+(defn analyzer
+  "How text is cut into words, for writing the index and for asking it alike:
+  a question cut differently from the pages would never match them.
+
+  Returns a fresh `StandardAnalyzer`: lowercased, cut at word boundaries, no
+  stemming, no stop words."
+  ^StandardAnalyzer []
+  (StandardAnalyzer.))
 
 (defn open
   "Open the index for writing, creating it when there is none. Holds Lucene's
@@ -87,7 +96,7 @@
   Returns {:directory <the FSDirectory> :writer <the IndexWriter>}, for `close`."
   [dir]
   (let [directory (FSDirectory/open (.toPath (io/file dir)))
-        writer    (IndexWriter. directory (IndexWriterConfig. (StandardAnalyzer.)))]
+        writer    (IndexWriter. directory (IndexWriterConfig. (analyzer)))]
        {:directory directory :writer writer}))
 
 (defn close
