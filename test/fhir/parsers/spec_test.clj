@@ -147,14 +147,14 @@
 (deftest page->document-keeps-the-prose-and-drops-the-boilerplate
   (let [document (spec/page->document patient patient-page)]
        (is (= (str url-prefix "patient.html") (:url document)) "the URL is the page's")
-       (is (= "Patient" (:title document)) "the head title, without the build number")
+       (is (= "Resource Patient - Content" (:title document)) "the first heading, without its section number")
        (is (= patient-body (:body document))
-           "the notice, tab strip, work group table, icon, structure views and footer are gone; a cell holding a paragraph is one line")))
+           "the notice, tab strip, work group table, icon, structure views and footer are gone; a cell holding a paragraph is one line; the first line keeps its number")))
 
-(deftest the-title-is-the-first-head-title-that-says-anything
+(deftest without-a-heading-the-title-is-the-first-head-title-that-says-anything
   (let [html "<html><head><title></title><title>Ehrsrle - FHIR v4.0.1</title></head><body><div class='col-12'><p>x</p></div></body></html>"]
        (is (= "Ehrsrle" (:title (spec/page->document patient html)))
-           "one page carries an empty title element before its real one")))
+           "the build number is dropped; one page carries an empty title element before its real one")))
 
 (deftest a-file-without-a-content-column-is-not-a-document
   (is (nil? (spec/page->document patient "<html><p>Not generated in this build</p></html>"))

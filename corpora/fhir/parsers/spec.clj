@@ -80,19 +80,38 @@
          (let [path (subs name (count dir))]
               {:path path :url (str url-prefix path) :entry entry}))))
 
-(defn- page-title
-  "The page's title, without the version's build number.
+(defn- head-title
+  "The head title, without the version's build number.
 
   doc  the parsed page
 
-  Returns e.g. \"Patient\" for a head title of \"Patient - FHIR v4.0.1\", or nil
-  when the head has no title. It is the first title that says anything: one
-  page carries an empty title element before its real one."
+  Returns e.g. \"Patient\" for \"Patient - FHIR v4.0.1\", or nil when the head has
+  no title. It is the first title that says anything: one page carries an
+  empty title element before its real one."
   [^Document doc]
   (let [titles (map (fn [^Element title] (.text title))
                     (.select doc "head > title"))]
        (when-let [title (first (remove str/blank? titles))]
          (str/replace title title-suffix ""))))
+
+(defn- page-title
+  "The page's title: its first heading without the section number. The head
+  title names the whole family of a resource's pages alike, while the heading
+  says which one this is.
+
+  doc     the parsed page
+  column  its content column, boilerplate already removed
+
+  Returns e.g. \"Resource Patient - Content\" from the heading
+  \"8.1 Resource Patient - Content\"; the head title when there is no heading."
+  [^Document doc ^Element column]
+  (if-let [heading (.selectFirst column "h1, h2, h3, h4, h5, h6")]
+    ;; A copy, so the body keeps the number on its first line like every
+    ;; other heading.
+    (let [heading (.clone heading)]
+         (.remove (.select heading "span.sectioncount"))
+         (.text heading))
+    (head-title doc)))
 
 (defn- block-text
   "An element's text, one line per block-level element.
@@ -162,7 +181,8 @@
 
   Returns
   {:url   <the page's url>
-   :title <the head title without the version's build number, e.g. \"Patient\">
+   :title <the first heading without its section number, e.g. \"Resource Patient - Content\";
+           the head title without the version's build number when there is no heading>
    :body  <the content column's text, one line per block-level element>}
   nil  a file without a content column: a questionnaire stub, or a fragment
        the tooling left under html/"
@@ -172,5 +192,5 @@
        (when column
          (.remove (.select column boilerplate))
          {:url   (:url page)
-          :title (page-title doc)
+          :title (page-title doc column)
           :body  (block-text column)})))
