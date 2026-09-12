@@ -2,8 +2,8 @@
 
 (ns liesl.index-test
   "Against a fresh migrated database and a temp index directory, with rows
-  written through liesl.document/upsert! so indexed_at behaves as it does in
-  use. The index is read back through Lucene's own reader."
+  written through `liesl.document/upsert!` so `indexed_at` behaves as it does
+  in use. The index is read back through Lucene's own reader."
   (:require [clojure.java.io      :as io]
             [clojure.test         :refer [deftest is]]
             [liesl.corpus         :as corpus]
@@ -58,7 +58,7 @@
        (try
          (f dir)
          (finally
-           ;; file-seq lists a directory before its contents; reversed, children go first.
+           ;; `file-seq` lists a directory before its contents; reversed, children go first.
            (doseq [file (reverse (file-seq dir))]
              (io/delete-file file silently))))))
 
@@ -84,7 +84,7 @@
          (document/upsert! conn source-id d))))
 
 (defn- index!
-  "One run of index-unindexed!, with the index opened and closed around it.
+  "One run of `index-unindexed!`, with the index opened and closed around it.
 
   conn  an open connection
   dir   the index directory
