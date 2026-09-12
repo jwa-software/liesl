@@ -3,8 +3,8 @@
 (ns liesl.db-test
   "These tests guard decisions, not SQLite's own behaviour. Each one fails if
   something we chose is quietly undone: the pragma that makes foreign keys
-  real, the STRICT clauses that make column types real, the deliberate
-  absence of a foreign key on judgment, and a rollback that actually works."
+  real, the `STRICT` clauses that make column types real, the deliberate
+  absence of a foreign key on `judgment`, and a rollback that actually works."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :refer [deftest is use-fixtures]]
@@ -38,12 +38,12 @@
   (jdbc/execute-one! conn [sql]))
 
 (defn- with-temp-db
-  "A fresh migrated database per test. WAL leaves -wal and -shm files beside
-  it, so all three are deleted afterwards.
+  "A fresh migrated database per test. WAL leaves `-wal` and `-shm` files
+  beside it, so all three are deleted afterwards.
 
-  f  the test, run with *db-file* and *db-spec* bound
+  f  the test, run with `*db-file*` and `*db-spec*` bound
 
-  Returns nothing the caller needs; a clojure.test fixture."
+  Returns nothing the caller needs; a `clojure.test` fixture."
   [f]
   (let [file     (java.io.File/createTempFile "liesl-test-" ".db")
         spec     (db/db-spec file)
@@ -58,8 +58,8 @@
              (io/delete-file (io/file (str file suffix)) silently))))))
 
 (defn- table-names
-  "User tables as a set of names -- SQLite's own sqlite_* tables excluded, and
-  a set because table order is arbitrary.
+  "User tables as a set of names -- SQLite's own `sqlite_*` tables excluded,
+  and a set because table order is arbitrary.
 
   conn  an open connection
 
@@ -82,7 +82,7 @@
            (table-names conn)))))
 
 (deftest every-data-table-is-strict
-  ;; A future migration that forgets STRICT would leave column types
+  ;; A future migration that forgets `STRICT` would leave column types
   ;; unenforced for that table alone, silently.
   (with-open [conn (db/get-connection *db-spec*)]
     (is (= #{"source" "fetch_state" "document" "link" "judgment"}
@@ -98,7 +98,7 @@
                  (exec! conn "INSERT INTO fetch_state (url, source_id) VALUES ('u', 999)")))))
 
 (deftest a-raw-connection-does-not-enforce-foreign-keys
-  ;; The reason liesl.db/get-connection exists. If this ever starts failing,
+  ;; The reason `liesl.db/get-connection` exists. If this ever starts failing,
   ;; SQLite changed its default and the pragma is no longer load-bearing --
   ;; which is worth knowing, hence a test rather than a comment.
   (with-open [conn (jdbc/get-connection *db-spec*)]
@@ -107,7 +107,7 @@
 
 (deftest judgment-accepts-a-document-this-installation-has-not-fetched
   ;; The published judgment set covers documents a narrow date range never
-  ;; downloaded. A foreign key to document would reject exactly those.
+  ;; downloaded. A foreign key to `document` would reject exactly those.
   (with-open [conn (db/get-connection *db-spec*)]
     (exec! conn (str "INSERT INTO judgment VALUES "
                      "('postgresql', 'why was HOT added', 'https://example.invalid/never-fetched', "
@@ -134,7 +134,7 @@
 
 (deftest pending-list-reports-what-has-not-run
   ;; The fixture already migrated, so there is nothing pending yet. Migratus
-  ;; logs to stderr, so with-out-str sees only what pending-list prints.
+  ;; logs to stderr, so `with-out-str` sees only what `pending-list` prints.
   (is (str/blank? (with-out-str (db/pending-list {:db-file *db-file*}))))
   (db/rollback {:db-file *db-file*})
   (is (str/includes?
