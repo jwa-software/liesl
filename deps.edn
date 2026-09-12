@@ -1,7 +1,7 @@
 ;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
 
-{;; resources and corpora are on the classpath so migratus and the corpus
- ;; loader can find their files. test is not -- it belongs to the :test alias.
+{;; `resources` and `corpora` are on the classpath so migratus and the corpus
+ ;; loader can find their files. `test` is not -- it belongs to the :test alias.
  :paths ["src" "resources" "corpora"]
 
  ;; Runtime, not tooling: a fresh clone migrates its own database on first run.
@@ -14,7 +14,7 @@
 
  :aliases
  {;; clj -M:nrepl  start the long-lived REPL; leave it running
-  ;; nREPL picks a free port and writes it to .nrepl-port, which is how the
+  ;; nREPL picks a free port and writes it to `.nrepl-port`, which is how the
   ;; editor finds it. cider-nrepl looks optional and is not: completion and
   ;; the default pretty-printer live there, and both fail silently without it.
   :nrepl
