@@ -23,10 +23,10 @@
 ;; ---- Public ----
 
 (defn upsert!
-  "One document row, upserted on url so ids survive a re-run.
+  "One document row, upserted on `url` so ids survive a re-run.
 
   conn       an open connection
-  source-id  the id of the source row the document belongs to
+  source-id  the `id` of the source row the document belongs to
   document   {:url     <string, the cross-machine identity>
               :kind    <string, e.g. \"spec\">
               :title   <string, or nil>
@@ -43,8 +43,9 @@
    :content_hash <32 bytes: SHA-256 over the title, a newline and the body>
    :indexed_at   <string, or nil>}
 
-  A row whose title and body both came back unchanged keeps its indexed_at;
-  any other update clears it, which puts the row back on the indexer's queue."
+  A row whose `title` and `body` both came back unchanged keeps its
+  `indexed_at`; any other update clears it, which puts the row back on the
+  indexer's queue."
   [conn source-id {:keys [url kind title body version]}]
   (jdbc/execute-one!
     conn
