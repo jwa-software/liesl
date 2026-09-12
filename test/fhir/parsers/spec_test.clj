@@ -3,8 +3,8 @@
 (ns fhir.parsers.spec-test
   "Tested against small zips the test writes itself, one per archive layout:
   the Windows-built ones with backslash separators, the Mac-built ones with
-  their own directories and __MACOSX/ shadows. The parser is tested against a
-  page cut down to its skeleton."
+  their own directories and `__MACOSX/` shadows. The parser is tested against
+  a page cut down to its skeleton."
   (:require [clojure.java.io   :as io]
             [clojure.string    :as str]
             [clojure.test      :refer [deftest is]]
@@ -16,7 +16,7 @@
 
 ;; Entry name -> content, per layout. Written in this order, which is the
 ;; order an archive lists them back. Each entry exists to exercise one
-;; condition of zip-entry->page.
+;; condition of `zip-entry->page`.
 (def ^:private windows-entries
   [["index.html"                     "<p>top level, outside site</p>"]
    ["site\\patient.html"             "<p>patient</p>"]
@@ -34,11 +34,11 @@
    ["fhir-spec/site/patient.html"             "<p>patient</p>"]
    ["__MACOSX/fhir-spec/site/._patient.html"  "mac metadata"]])
 
-;; The page map pages would build for patient.html; the entry is not read here.
+;; The page map `pages` would build for `patient.html`; the entry is not read here.
 (def ^:private patient
   {:path "patient.html" :url (str url-prefix "patient.html")})
 
-;; A page cut down to what page->document reads: the head title with the
+;; A page cut down to what `page->document` reads: the head title with the
 ;; version's build number, the content column with each kind of boilerplate
 ;; around the prose, and chrome outside the column. Attributes are in single
 ;; quotes so the string needs no escapes.
@@ -64,7 +64,7 @@
    </body>
    </html>")
 
-;; What is left of patient-page once the boilerplate and the chrome are gone.
+;; What is left of `patient-page` once the boilerplate and the chrome are gone.
 (def ^:private patient-body
   (str/join "\n" ["8.1 Resource Patient - Content"
                   "Demographics and other administrative information about an individual."
@@ -74,7 +74,7 @@
                   "Definition"
                   "An identifier for this patient."]))
 
-;; One page and one stub, in the Windows layout, for documents.
+;; One page and one stub, in the Windows layout, for `documents`.
 (def ^:private document-entries
   [["site\\patient.html"               patient-page]
    ["site\\patient-questionnaire.html" "<html><p>Not generated in this build</p></html>"]])
@@ -85,7 +85,7 @@
   file     where to write it
   entries  [[entry name, content string] ...]
 
-  Returns file."
+  Returns `file`."
   [^File file entries]
   (with-open [out (ZipOutputStream. (io/output-stream file))]
     (doseq [[^String name ^String content] entries]
@@ -97,8 +97,8 @@
 (defn- with-zip-file
   "A freshly written zip, deleted afterwards.
 
-  entries  what to write into it, as write-zip! takes them
-  f        the test body, given the File
+  entries  what to write into it, as `write-zip!` takes them
+  f        the test body, given the `File`
 
   Returns what f returns."
   [entries f]
@@ -112,8 +112,8 @@
 (defn- with-archive
   "A freshly written zip, opened, then closed and deleted afterwards.
 
-  entries  what to write into it, as write-zip! takes them
-  f        the test body, given the open ZipFile
+  entries  what to write into it, as `write-zip!` takes them
+  f        the test body, given the open `ZipFile`
 
   Returns what f returns."
   [entries f]

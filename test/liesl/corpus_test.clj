@@ -11,19 +11,19 @@
             [next.jdbc            :as jdbc]
             [next.jdbc.result-set :as rs]))
 
-;; A definition in the shape corpus/load returns, so the tests do not depend on
-;; what corpora/fhir/corpus.edn happens to say.
+;; A definition in the shape `corpus/load` returns, so the tests do not depend
+;; on what `corpora/fhir/corpus.edn` happens to say.
 (def ^:private two-sources
   {:corpus  "test"
    :sources [{:name "pages" :kind "spec"   :base-url "http://127.0.0.1/" :config {:clone :shallow}}
              {:name "repo"  :kind "source" :base-url "http://127.0.0.1/repo.git"}]})
 
 (defn- succeed?
-  "Whether f returns rather than throwing ex-info.
+  "Whether `f` returns rather than throwing `ex-info`.
 
   f  a no-argument function
 
-  Returns true when it returned, false when it threw an ExceptionInfo; any
+  Returns true when it returned, false when it threw an `ExceptionInfo`; any
   other exception passes through."
   [f]
   (try (f) true (catch clojure.lang.ExceptionInfo _ false)))
@@ -89,7 +89,7 @@
        (is (= [:base-url] (:missing-keys info)))))
 
 (deftest a-corpus-cannot-execute-code
-  ;; The fixture is valid apart from a #= form, which asks the reader to
+  ;; The fixture is valid apart from a `#=` form, which asks the reader to
   ;; evaluate. Were it evaluated, :base-url would be a string and the load
   ;; would succeed -- so a failure here is the proof that it was not.
   (is (not (succeed? #(corpus/load "eval-attempt")))))

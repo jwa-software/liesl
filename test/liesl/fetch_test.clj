@@ -19,7 +19,7 @@
 (def ^:private ^:dynamic *source-id* nil)
 
 (defn- insert-a-source!
-  "Create the one source the tests fetch through. RETURNING saves a second
+  "Create the one source the tests fetch through. `RETURNING` saves a second
   statement to read back what we just wrote.
 
   conn  an open connection
@@ -35,12 +35,12 @@
 
 (defn- insert-an-archive-source!
   "A second source, pointed at the test server, whose config names an archive
-  the way fetch-archive! expects.
+  the way `fetch-archive!` expects.
 
   base-url  the server's URL, with a trailing slash
   config    the config map; stored as EDN text
 
-  Returns the row, as upsert-sources! would give it."
+  Returns the row, as `upsert-sources!` would give it."
   [base-url config]
   (with-open [conn (db/get-connection *db-spec*)]
     (jdbc/execute-one!
@@ -52,12 +52,12 @@
       {:builder-fn rs/as-unqualified-lower-maps})))
 
 (defn- with-temp-db
-  "A fresh migrated database per test, with one source row -- fetch_state
-  references it, and get-connection enforces that.
+  "A fresh migrated database per test, with one source row -- `fetch_state`
+  references it, and `get-connection` enforces that.
 
-  f  the test, run with *db-spec* and *source-id* bound
+  f  the test, run with `*db-spec*` and `*source-id*` bound
 
-  Returns nothing the caller needs; a clojure.test fixture."
+  Returns nothing the caller needs; a `clojure.test` fixture."
   [f]
   (let [file     (java.io.File/createTempFile "liesl-fetch-test-" ".db")
         silently true]
@@ -73,11 +73,11 @@
              (io/delete-file target silently))))))
 
 (defn- respond!
-  "Ask handler-fn for [status body headers] and send it back. The exchange is
-  one HTTP interaction, holding both the request to read and the response to
-  write.
+  "Ask `handler-fn` for [status body headers] and send it back. The exchange
+  is one HTTP interaction, holding both the request to read and the response
+  to write.
 
-  exchange    the HttpExchange
+  exchange    the `HttpExchange`
   handler-fn  given the exchange, returns [status body headers]; body may be nil
 
   Returns nothing the caller needs."
@@ -91,10 +91,10 @@
          (with-open [out (.getResponseBody exchange)] (.write out (.getBytes body))))))
 
 (defn- with-server
-  "Start a server on a free local port, hand its URL to f, and stop it
+  "Start a server on a free local port, hand its URL to `f`, and stop it
   afterwards.
 
-  handler-fn  called once per request with the HttpExchange; the
+  handler-fn  called once per request with the `HttpExchange`; the
               [status body headers] it returns becomes the response
   f           given the URL of the one page the server serves
 
@@ -106,7 +106,7 @@
         default-backlog 0
         no-wait         0
         server          (HttpServer/create (InetSocketAddress. loopback any-free-port) default-backlog)
-        ;; A one-off object implementing HttpHandler, which is Clojure's anonymous class.
+        ;; A one-off object implementing `HttpHandler`, which is Clojure's anonymous class.
         ;; In Java:
         ;;   new HttpHandler() { public void handle(HttpExchange e) { ... } }
         handler         (reify HttpHandler (handle [_this exchange] (respond! exchange handler-fn)))]
@@ -117,7 +117,7 @@
          (finally (.stop server no-wait)))))
 
 (defn- get-fetch-state!
-  "The fetch_state row for a URL.
+  "The `fetch_state` row for a URL.
 
   url  the row key
 
@@ -129,37 +129,37 @@
                        {:builder-fn rs/as-unqualified-lower-maps})))
 
 (defn- fetch!
-  "fetch-url! against the test database and source, as :string unless told
+  "`fetch-url!` against the test database and source, as :string unless told
   otherwise.
 
   url   what to fetch
   opts  keyword arguments merged over the defaults, e.g. :as :file :opts {...}
 
-  Returns what fetch-url! returns."
+  Returns what `fetch-url!` returns."
   [url & {:as opts}]
   (with-open [conn (db/get-connection *db-spec*)]
     (fetch/fetch-url! conn (merge {:url url :source-id *source-id* :as :string} opts))))
 
 (defn- archive!
-  "fetch-archive! against the test database.
+  "`fetch-archive!` against the test database.
 
   source   the row insert-an-archive-source! returned
   version  the version string
   dir      where archives go
 
-  Returns what fetch-archive! returns."
+  Returns what `fetch-archive!` returns."
   [source version dir]
   (with-open [conn (db/get-connection *db-spec*)]
     (fetch/fetch-archive! conn {:source source :version version :dir dir})))
 
 (defn- versions!
-  "fetch-versions! against the test database.
+  "`fetch-versions!` against the test database.
 
   source    the row insert-an-archive-source! returned
   versions  the version strings, in order
   dir       where archives go
 
-  Returns what fetch-versions! returns."
+  Returns what `fetch-versions!` returns."
   [source versions dir]
   (with-open [conn (db/get-connection *db-spec*)]
     (fetch/fetch-versions! conn {:source source :versions versions :dir dir})))
@@ -170,7 +170,7 @@
 
   base-url  the server's URL, with a trailing slash
 
-  Returns the definition, in the shape corpus/load gives."
+  Returns the definition, in the shape `corpus/load` gives."
   [base-url]
   {:corpus   "test"
    :versions ["R4" "R5"]
@@ -178,13 +178,13 @@
               {:name "repo"     :kind "source" :base-url "http://127.0.0.1/repo.git" :config {:clone :shallow}}]})
 
 (defn- corpus!
-  "fetch-corpus! against the test database, with no pause.
+  "`fetch-corpus!` against the test database, with no pause.
 
   definition  the definition to fetch
   versions    the version strings, or nil for the definition's own
   dir         where archives go
 
-  Returns what fetch-corpus! returns."
+  Returns what `fetch-corpus!` returns."
   [definition versions dir]
   (binding [fetch/*pause-ms* 0]
            (with-open [conn (db/get-connection *db-spec*)]
@@ -202,7 +202,7 @@
        (try
          (f dir)
          (finally
-           ;; file-seq lists a directory before its contents; reversed, children go first.
+           ;; `file-seq` lists a directory before its contents; reversed, children go first.
            (doseq [file (reverse (file-seq dir))]
              (io/delete-file file silently))))))
 

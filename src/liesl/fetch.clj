@@ -1,7 +1,7 @@
 ;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
 
 (ns liesl.fetch
-  "Fetches one URL conditionally and keeps its fetch_state row honest.
+  "Fetches one URL conditionally and keeps its `fetch_state` row honest.
 
   Which URLs a source has, and what to do with a body once it arrives, are
   someone else's problem. This namespace does one request."
@@ -25,13 +25,13 @@
 
 (def ^:private request-timeout (Duration/ofSeconds 30))
 
-;; Under the data directory; archives land in <archives>/<corpus>/<source>/<version>/.
+;; Under the data directory; archives land in `<archives>/<corpus>/<source>/<version>/`.
 (def ^:private archives-dir-name "archives")
 
-;; An HttpClient owns a thread pool, and a plain def would create it the moment
-;; this namespace is required. delay is lazy evaluation, not a duration: the
-;; body runs at the first @client below, once, and every later @ gets that same
-;; client back.
+;; An `HttpClient` owns a thread pool, and a plain `def` would create it the
+;; moment this namespace is required. `delay` is lazy evaluation, not a
+;; duration: the body runs at the first `@client` below, once, and every later
+;; `@` gets that same client back.
 (def ^:private client (delay (HttpClient/newHttpClient)))
 
 ;; The pause between two consecutive requests to the same server.
@@ -59,10 +59,10 @@
   it is an ordinary request and the server has no way to answer 304.
 
   url            what to fetch
-  etag           sent as If-None-Match, or nil
-  last_modified  sent as If-Modified-Since, or nil
+  etag           sent as `If-None-Match`, or nil
+  last_modified  sent as `If-Modified-Since`, or nil
 
-  Returns the HttpRequest."
+  Returns the `HttpRequest`."
   ^HttpRequest [url {:keys [etag last_modified]}]
   (let [^HttpRequest$Builder builder
         (doto
@@ -76,7 +76,7 @@
 (defn- header
   "One response header.
 
-  response  the HttpResponse
+  response  the `HttpResponse`
   name      the header name; case does not matter
 
   Returns its first value, or nil when absent."
@@ -98,7 +98,7 @@
   "The validators the last fetch of this URL left behind.
 
   conn  an open connection
-  url   the fetch_state key
+  url   the `fetch_state` key
 
   Returns {:etag ... :last_modified ...}, either value possibly nil, or nil
   when the URL has never been fetched."
@@ -108,11 +108,11 @@
                      {:builder-fn rs/as-unqualified-lower-maps}))
 
 (defn- upsert!
-  "Write the row back. next_fetch is the caller's decision, not ours -- how soon
-  a URL is worth revisiting depends on what it is.
+  "Write the row back. `next_fetch` is the caller's decision, not ours -- how
+  soon a URL is worth revisiting depends on what it is.
 
   conn           an open connection
-  url            the fetch_state key
+  url            the `fetch_state` key
   source-id      the source row it belongs to
   next-fetch     written as given
   status         the HTTP status of this fetch
@@ -165,7 +165,7 @@
   request  the HttpRequest to send
   target   the file to end up with; missing parent directories are created
 
-  Returns {:response :status :file :content-hash}; :file is target made
+  Returns {:response :status :file :content-hash}; :file is `target` made
   absolute, :content-hash is nil unless the status is 200."
   [^HttpRequest request ^File target]
   (let [target (.getAbsoluteFile target)]
@@ -190,12 +190,12 @@
                     :status       status
                     :file         target
                     :content-hash content-hash})
-              ;; After a move the temp path no longer exists and delete does nothing;
+              ;; After a move the temp path no longer exists and `delete` does nothing;
               ;; on every other path, including an exception mid-download, it cleans up.
               (finally (.delete temp))))))
 
 (defn- pause!
-  "Wait *pause-ms* before the next request to the same server.
+  "Wait `*pause-ms*` before the next request to the same server.
 
   Returns nothing the caller needs."
   []
@@ -205,18 +205,18 @@
 ;; ---- where one archive is, an archive, a version list, a corpus, the command ----
 
 (defn archives-dir
-  "The directory all archives live under: data/archives.
+  "The directory all archives live under: `data/archives`.
 
-  Returns it as a File."
+  Returns it as a `File`."
   ^File []
   (io/file (db/data-dir) archives-dir-name))
 
 (defn fetch-url!
-  "Fetch one URL, conditionally, and update its fetch_state row.
+  "Fetch one URL, conditionally, and update its `fetch_state` row.
 
   url         what to fetch
   source-id   the source row it belongs to
-  next-fetch  written to fetch_state.next_fetch; the caller's decision
+  next-fetch  written to `fetch_state.next_fetch`; the caller's decision
   as          where the response body goes, :string or :file
   opts        what that choice needs: nothing for :string, {:file target} for :file
 
@@ -254,8 +254,8 @@
 (defn archive-location
   "Where one version of a source's archive is, on the server and on disk.
 
-  source   a source row, as upsert-sources! returns it
-  version  which version, e.g. \"R4\"; replaces {version} in the config's path
+  source   a source row, as `upsert-sources!` returns it
+  version  which version, e.g. \"R4\"; replaces `{version}` in the config's path
   dir      the directory all archives live under
 
   Returns
@@ -263,7 +263,7 @@
    :url        <url-prefix + archive: where it is fetched from>
    :file       <dir>/<corpus>/<source name>/<version>/<archive>: where it lands}
 
-  A config without :version-path or :archive is an ex-info naming the source."
+  A config without :version-path or :archive is an `ex-info` naming the source."
   [{:keys [source version dir]}]
   (let [{:keys [version-path archive]} (some-> (:config source) edn/read-string)]
        (when-not version-path (throw (ex-info (format "%s config needs :version-path" (:name source))
@@ -279,8 +279,8 @@
   "Fetch one version of a source's archive into dir, conditionally.
 
   conn      an open connection
-  source    a source row, as upsert-sources! returns it
-  version   which version, e.g. \"R4\"; replaces {version} in the config's path
+  source    a source row, as `upsert-sources!` returns it
+  version   which version, e.g. \"R4\"; replaces `{version}` in the config's path
   dir       the directory all archives live under
 
   Returns
@@ -288,7 +288,7 @@
   {:status 304}                                                         not modified since the last fetch
   {:status <n>}                                                         anything else
 
-  A config archive-location refuses is refused here too, before any request."
+  A config `archive-location` refuses is refused here too, before any request."
   [conn {:keys [source version dir]}]
   (let [{:keys [url file]} (archive-location {:source source
                                               :version version
@@ -299,11 +299,11 @@
                          :opts      {:file file}})))
 
 (defn fetch-versions!
-  "Fetch a source's archive for each version in turn, pausing *pause-ms*
+  "Fetch a source's archive for each version in turn, pausing `*pause-ms*`
   between requests.
 
   conn      an open connection
-  source    a source row, as upsert-sources! returns it
+  source    a source row, as `upsert-sources!` returns it
   versions  the version strings, fetched in this order
   dir       the directory all archives live under
 
@@ -326,7 +326,7 @@
   version by version. A source whose config names no :archive is skipped.
 
   conn        an open connection
-  definition  what corpus/load returned
+  definition  what `corpus/load` returned
   versions    the version strings to fetch; absent means the definition's :versions
   dir         the directory all archives live under
 
@@ -345,15 +345,15 @@
              sources)))
 
 (defn ^:exec-fn fetch
-  "Fetch a corpus's archives into data/archives. `clj -X:fetch :corpus fhir`,
+  "Fetch a corpus's archives into `data/archives`. `clj -X:fetch :corpus fhir`,
   optionally `:versions '[\"R4\"]'` and `:pause-ms 1000`. Takes the exec map
-  because that is what -X passes.
+  because that is what `-X` passes.
 
   corpus    the corpus name, as a symbol or string
   versions  the version strings; absent means every version the corpus declares
-  pause-ms  the pause between requests; absent means *pause-ms* as defined
+  pause-ms  the pause between requests; absent means `*pause-ms*` as defined
 
-  Prints one line per version fetched. Returns nil, because -X discards it."
+  Prints one line per version fetched. Returns nil, because `-X` discards it."
   [{:keys [corpus versions pause-ms]}]
   (binding [*pause-ms* (or pause-ms *pause-ms*)]
            (with-open [conn (db/get-connection)]

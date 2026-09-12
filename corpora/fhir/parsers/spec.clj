@@ -1,8 +1,8 @@
 ;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
 
 (ns fhir.parsers.spec
-  "Reads the pages of one published FHIR version out of its fhir-spec.zip, and
-  turns a page into the text a document row holds.
+  "Reads the pages of one published FHIR version out of its `fhir-spec.zip`,
+  and turns a page into the text a document row holds.
 
   Each version's archive keeps its pages under a directory of its own choosing,
   with backslash separators where it was built on Windows. Most of its HTML is
@@ -18,7 +18,7 @@
 
 ;; The directory each version keeps its pages under, as a prefix of the entry
 ;; name. STU3 and R4 were built on Windows, R4B and R5 on a Mac, each with a
-;; different one; a Mac archive also carries __MACOSX/ shadow entries, which
+;; different one; a Mac archive also carries `__MACOSX/` shadow entries, which
 ;; never start with the prefix and so need no special case.
 (def ^:private page-dirs
   {"STU3" "site/"
@@ -26,7 +26,7 @@
    "R4B"  "R4B-zip/"
    "R5"   "fhir-spec/site/"})
 
-;; The same page rendered in another syntax, e.g. patient.json.html.
+;; The same page rendered in another syntax, e.g. `patient.json.html`.
 (def ^:private rendered-view #"\.(json|xml|ttl|shex|sch|canonical)\.html$")
 
 ;; The one element holding a page's content. A file without it is not a page:
@@ -38,7 +38,7 @@
 ;; Detailed Descriptions, ...), the work group and maturity tables, the ANSI
 ;; box, the self-link icon after each heading and the UML diagram, and the
 ;; structure views (element table, UML, XML, JSON, Turtle, and all of them once
-;; more). The element table is on each resource's own -definitions.html, so
+;; more). The element table is on each resource's own `-definitions.html`, so
 ;; dropping the views loses nothing.
 (def ^:private ^String boilerplate
   "p#publish-box, ul.nav-tabs, table.colsn, table.colsi, table.none, svg, div#tabs")
@@ -60,8 +60,8 @@
 (defn- zip-entry->page
   "The page an archive entry is, or nil for an entry that is not a page.
 
-  entry       a ZipEntry
-  dir         the version's entry from page-dirs, e.g. \"site/\"
+  entry       a `ZipEntry`
+  dir         the version's entry from `page-dirs`, e.g. \"site/\"
   url-prefix  the version's base URL, e.g. \"https://hl7.org/fhir/R4/\"
 
   Returns
@@ -69,9 +69,9 @@
    :url   <url-prefix + path>
    :entry <the ZipEntry, for page-html>}
   nil  a directory
-  nil  a file outside dir, such as a stray index.html or a __MACOSX/ shadow
-  nil  a file that is not HTML, such as fhir.css
-  nil  a rendered view, such as patient.json.html"
+  nil  a file outside `dir`, such as a stray `index.html` or a `__MACOSX/` shadow
+  nil  a file that is not HTML, such as `fhir.css`
+  nil  a rendered view, such as `patient.json.html`"
   [^ZipEntry entry ^String dir ^String url-prefix]
   (let [name (windows->unix (.getName entry))]
        (when (and (not (.isDirectory entry))
@@ -144,15 +144,15 @@
 (defn pages
   "Every prose page in an archive, with the URL hl7.org serves it at.
 
-  archive     an open ZipFile; the caller closes it, so use the pages before then
-  version     which version the archive is, e.g. \"R4\"; must be in page-dirs
+  archive     an open `ZipFile`; the caller closes it, so use the pages before then
+  version     which version the archive is, e.g. \"R4\"; must be in `page-dirs`
   url-prefix  the version's base URL, e.g. \"https://hl7.org/fhir/R4/\"
 
   Returns
   [<page, as zip-entry->page describes it>
    ...one per page, in archive order...]
 
-  An unknown version is an ex-info naming it and the known ones."
+  An unknown version is an `ex-info` naming it and the known ones."
   [^ZipFile archive ^String version ^String url-prefix]
   (let [dir (get page-dirs version)]
        (when-not dir
@@ -167,8 +167,8 @@
 (defn page-html
   "One page's HTML, read from the archive on demand.
 
-  archive  the open ZipFile the page came from
-  page     one map from pages
+  archive  the open `ZipFile` the page came from
+  page     one map from `pages`
 
   Returns the page's content as a UTF-8 string."
   ^String [^ZipFile archive page]
@@ -179,8 +179,8 @@
 (defn page->document
   "What a page contributes to a document row: its URL, title and body.
 
-  page  one map from pages
-  html  the page's content, from page-html
+  page  one map from `pages`
+  html  the page's content, from `page-html`
 
   Returns
   {:url   <the page's url>
@@ -188,7 +188,7 @@
            the head title without the version's build number when there is no heading>
    :body  <the content column's text, one line per block-level element>}
   nil  a file without a content column: a questionnaire stub, or a fragment
-       the tooling left under html/"
+       the tooling left under `html/`"
   [page ^String html]
   (let [doc    (Jsoup/parse html)
         column (.selectFirst doc content-column)]
@@ -200,10 +200,10 @@
 
 (defn documents
   "Every document one version's archive yields. This is the function
-  corpus.edn names as the spec source's :parser.
+  `corpus.edn` names as the spec source's :parser.
 
-  archive-file  the fhir-spec.zip on disk
-  version       which version it is, e.g. \"R4\"; must be in page-dirs
+  archive-file  the `fhir-spec.zip` on disk
+  version       which version it is, e.g. \"R4\"; must be in `page-dirs`
   url-prefix    the version's base URL, e.g. \"https://hl7.org/fhir/R4/\"
 
   Returns
