@@ -36,7 +36,7 @@
 (defn- two-pages
   "The parser the pages source names: two documents per version.
 
-  archive-file  not read; parse-versions! only checks that it exists
+  archive-file  not read; `parse-versions!` only checks that it exists
   version       goes into the body, so a row shows which version wrote it
   url-prefix    what the URLs start with
 
@@ -75,7 +75,7 @@
        (try
          (f dir)
          (finally
-           ;; file-seq lists a directory before its contents; reversed, children go first.
+           ;; `file-seq` lists a directory before its contents; reversed, children go first.
            (doseq [file (reverse (file-seq dir))]
              (io/delete-file file silently))))))
 
@@ -89,7 +89,7 @@
   (with-temp-db (fn [conn] (with-temp-dir (fn [dir] (f conn dir))))))
 
 (defn- touch-archives!
-  "Empty files where fetch-archive! would have put the pages source's archives.
+  "Empty files where `fetch-archive!` would have put the pages source's archives.
 
   dir       the archives directory
   versions  which versions to fake
