@@ -130,7 +130,8 @@
   (with-index
     (fn [opened]
         (let [snippet (:snippet (first (filter #(= (:url patient) (:url %)) (query/hits opened {:q "birthTime"}))))]
-             (is (str/includes? snippet "<b>birthTime</b>") "the word is marked, in the page's own spelling")
+             (is (str/includes? snippet "birthTime")          "the word is there, in the page's own spelling")
+             (is (not (str/includes? snippet "<b>"))           "and not wrapped in a mark")
              (is (not (str/includes? snippet "Demographics"))  "and the sentence before it is not part of the passage")))))
 
 (deftest limit-caps-the-hits

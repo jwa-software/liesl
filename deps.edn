@@ -12,7 +12,12 @@
         org.jsoup/jsoup {:mvn/version "1.23.2"}
         org.apache.lucene/lucene-core {:mvn/version "10.5.1"}
         org.apache.lucene/lucene-queryparser {:mvn/version "10.5.1"}
-        org.apache.lucene/lucene-highlighter {:mvn/version "10.5.1"}}
+        org.apache.lucene/lucene-highlighter {:mvn/version "10.5.1"}
+        ;; The MCP server: core plus its Jackson 3 JSON binding. It logs through
+        ;; slf4j, and slf4j-simple sends that to stderr, which keeps stdout for
+        ;; the protocol and still shows the SDK's own errors.
+        io.modelcontextprotocol.sdk/mcp {:mvn/version "2.0.1"}
+        org.slf4j/slf4j-simple {:mvn/version "2.0.17"}}
 
  :aliases
  {;; clj -M:nrepl  start the long-lived REPL; leave it running
@@ -74,4 +79,8 @@
 
   ;; clj -X:search :q birthTime                      the pages that answer a question, best first
   ;; clj -X:search :q '"patient birth"' :version R4  several words are quoted; one version only
-  :search       {:exec-fn liesl.query/search      :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}}}
+  :search       {:exec-fn liesl.query/search      :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}
+
+  ;; clojure -M:mcp   serve the index to an agent over MCP on stdin and stdout;
+  ;;                  what `claude mcp add liesl -- clojure -M:mcp` runs
+  :mcp          {:main-opts ["-m" "liesl.mcp"]    :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}}}

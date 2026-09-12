@@ -8,7 +8,7 @@
   (:import [org.apache.lucene.index                DirectoryReader Term]
            [org.apache.lucene.queryparser.classic  MultiFieldQueryParser ParseException]
            [org.apache.lucene.search               BooleanClause$Occur BooleanQuery$Builder IndexSearcher Query ScoreDoc TermQuery]
-           [org.apache.lucene.search.uhighlight    UnifiedHighlighter]
+           [org.apache.lucene.search.uhighlight    DefaultPassageFormatter UnifiedHighlighter]
            [org.apache.lucene.store                FSDirectory]))
 
 ;; Where a bare word in a question is looked for. A word in the title is
@@ -16,6 +16,11 @@
 (def ^:private searched-fields (into-array String ["title" "body"]))
 
 (def ^:private default-limit 10)
+
+;; How a snippet is written out. The highlighter would wrap each matched word
+;; in <b>; a reader, human or model, already knows which words it asked for,
+;; so the marks are empty. Passages are joined by an ellipsis, nothing escaped.
+(def ^:private plain-passages (DefaultPassageFormatter. "" "" "... " false))
 
 ;; ---- Pure helpers: no I/O ----
 
@@ -101,14 +106,16 @@
     :version <string, or nil>
     :kind    <string>
     :score   <float, Lucene's own, higher is better>
-    :snippet <string: the body passage that matched, the words in <b>; the
+    :snippet <string: the body passage that matched, as the page has it; the
               first passage when none did>}
    ...best first...]"
   [{:keys [^IndexSearcher searcher ^DirectoryReader reader]} {:keys [q version kind limit]}]
   (let [query    (with-filters (parse q) version kind)
         found    (.search searcher query (int (or limit default-limit)))
         fields   (.storedFields reader)
-        snippets (.highlight (.build (UnifiedHighlighter/builder searcher (index/analyzer)))
+        snippets (.highlight (-> (UnifiedHighlighter/builder searcher (index/analyzer))
+                                 (.withFormatter plain-passages)
+                                 (.build))
                              "body"
                              query
                              found)]
