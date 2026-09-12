@@ -201,8 +201,15 @@
   []
   (Thread/sleep (long *pause-ms*)))
 
-;; ---- Public, each built on the one above: a request, an archive, a version
-;; ---- list, a corpus, the command ----
+;; ---- Public, each built on the one above: where archives live, a request,
+;; ---- where one archive is, an archive, a version list, a corpus, the command ----
+
+(defn archives-dir
+  "The directory all archives live under: data/archives.
+
+  Returns it as a File."
+  ^File []
+  (io/file (db/data-dir) archives-dir-name))
 
 (defn fetch-url!
   "Fetch one URL, conditionally, and update its fetch_state row.
@@ -244,6 +251,30 @@
          (select-keys received [:status :body :file])
          {:status status})))
 
+(defn archive-location
+  "Where one version of a source's archive is, on the server and on disk.
+
+  source   a source row, as upsert-sources! returns it
+  version  which version, e.g. \"R4\"; replaces {version} in the config's path
+  dir      the directory all archives live under
+
+  Returns
+  {:url-prefix <base_url + version path, e.g. \"https://hl7.org/fhir/R4/\">
+   :url        <url-prefix + archive: where it is fetched from>
+   :file       <dir>/<corpus>/<source name>/<version>/<archive>: where it lands}
+
+  A config without :version-path or :archive is an ex-info naming the source."
+  [{:keys [source version dir]}]
+  (let [{:keys [version-path archive]} (some-> (:config source) edn/read-string)]
+       (when-not version-path (throw (ex-info (format "%s config needs :version-path" (:name source))
+                                              {})))
+       (when-not archive      (throw (ex-info (format "%s config needs :archive"      (:name source))
+                                              {})))
+       (let [url-prefix (str (:base_url source) (str/replace version-path "{version}" version))]
+            {:url-prefix url-prefix
+             :url        (str     url-prefix archive)
+             :file       (io/file dir (:corpus source) (:name source) version archive)})))
+
 (defn fetch-archive!
   "Fetch one version of a source's archive into dir, conditionally.
 
@@ -255,20 +286,17 @@
   Returns
   {:status 200 :file <dir>/<corpus>/<source name>/<version>/<archive>}  new content, written there
   {:status 304}                                                         not modified since the last fetch
-  {:status <n>}                                                         anything else"
+  {:status <n>}                                                         anything else
+
+  A config archive-location refuses is refused here too, before any request."
   [conn {:keys [source version dir]}]
-  (let [{:keys [version-path archive]} (some-> (:config source) edn/read-string)]
-       (when-not version-path (throw (ex-info (format "%s config needs :version-path" (:name source))
-                                              {})))
-       (when-not archive      (throw (ex-info (format "%s config needs :archive"      (:name source))
-                                              {})))
-       (let [version-path' (str/replace version-path       "{version}"      version)
-             url           (str         (:base_url source) version-path'    archive)
-             file          (io/file     dir                (:corpus source) (:name source) version archive)]
-            (fetch-url! conn {:url       url
-                              :source-id (:id source)
-                              :as        :file
-                              :opts      {:file file}}))))
+  (let [{:keys [url file]} (archive-location {:source source
+                                              :version version
+                                              :dir dir})]
+       (fetch-url! conn {:url       url
+                         :source-id (:id source)
+                         :as        :file
+                         :opts      {:file file}})))
 
 (defn fetch-versions!
   "Fetch a source's archive for each version in turn, pausing *pause-ms*
@@ -287,7 +315,9 @@
         (map-indexed (fn [i version]
                          ;; Between requests, not before the first.
                          (when (pos? i) (pause!))
-                         (assoc (fetch-archive! conn {:source source :version version :dir dir})
+                         (assoc (fetch-archive! conn {:source source
+                                                      :version version
+                                                      :dir dir})
                                 :version version)))
         versions))
 
@@ -309,7 +339,9 @@
         sources  (corpus/upsert-sources! conn definition)]
        (into {}
              (comp (filter archive-source?)
-                   (map (fn [source] [(:name source) (fetch-versions! conn {:source source :versions versions :dir dir})])))
+                   (map (fn [source] [(:name source) (fetch-versions! conn {:source source
+                                                                            :versions versions
+                                                                            :dir dir})])))
              sources)))
 
 (defn ^:exec-fn fetch
@@ -328,6 +360,6 @@
              (doseq
                [[name source] (fetch-corpus! conn {:definition (corpus/load (name corpus))
                                                    :versions   versions
-                                                   :dir        (io/file (db/data-dir) archives-dir-name)})
+                                                   :dir        (archives-dir)})
                 {:keys [version status file]} source]
                (println name version status (str file))))))

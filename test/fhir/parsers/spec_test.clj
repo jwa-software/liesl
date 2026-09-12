@@ -74,6 +74,11 @@
                   "Definition"
                   "An identifier for this patient."]))
 
+;; One page and one stub, in the Windows layout, for documents.
+(def ^:private document-entries
+  [["site\\patient.html"               patient-page]
+   ["site\\patient-questionnaire.html" "<html><p>Not generated in this build</p></html>"]])
+
 (defn- write-zip!
   "A zip file holding the given entries.
 
@@ -89,6 +94,21 @@
       (.closeEntry out)))
   file)
 
+(defn- with-zip-file
+  "A freshly written zip, deleted afterwards.
+
+  entries  what to write into it, as write-zip! takes them
+  f        the test body, given the File
+
+  Returns what f returns."
+  [entries f]
+  (let [file     (File/createTempFile "fhir-spec-test-" ".zip")
+        silently true]
+       (try
+         (f (write-zip! file entries))
+         (finally
+           (io/delete-file file silently)))))
+
 (defn- with-archive
   "A freshly written zip, opened, then closed and deleted afterwards.
 
@@ -97,14 +117,10 @@
 
   Returns what f returns."
   [entries f]
-  (let [file     (File/createTempFile "fhir-spec-test-" ".zip")
-        silently true]
-       (try
-         (write-zip! file entries)
-         (with-open [archive (ZipFile. file)]
-           (f archive))
-         (finally
-           (io/delete-file file silently)))))
+  (with-zip-file entries
+    (fn [^File file]
+        (with-open [archive (ZipFile. file)]
+          (f archive)))))
 
 (deftest a-windows-built-archive-yields-the-pages-under-site
   (with-archive windows-entries
@@ -159,3 +175,10 @@
 (deftest a-file-without-a-content-column-is-not-a-document
   (is (nil? (spec/page->document patient "<html><p>Not generated in this build</p></html>"))
       "the questionnaire stubs and the html/ fragments have no column"))
+
+(deftest documents-are-every-page-with-a-content-column
+  (with-zip-file document-entries
+    (fn [file]
+        (let [documents (spec/documents file "R4" url-prefix)]
+             (is (= [(str url-prefix "patient.html")] (map :url documents)) "the stub yields nothing")
+             (is (= ["Resource Patient - Content"] (map :title documents)) "each is what page->document gives")))))

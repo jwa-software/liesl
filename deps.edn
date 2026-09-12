@@ -59,4 +59,8 @@
   ;; clj -X:fetch :corpus fhir                       fetch every version of every archive source
   ;; clj -X:fetch :corpus fhir :versions '["R4"]'    one version only
   ;; clj -X:fetch :corpus fhir :pause-ms 2000        two seconds between requests instead of one
-  :fetch        {:exec-fn liesl.fetch/fetch       :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}}}
+  :fetch        {:exec-fn liesl.fetch/fetch       :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}
+
+  ;; clj -X:parse :corpus fhir                       parse every fetched archive into document rows
+  ;; clj -X:parse :corpus fhir :versions '["R4"]'    one version only
+  :parse        {:exec-fn liesl.parse/parse       :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}}}
