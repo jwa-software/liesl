@@ -43,12 +43,13 @@ Each entry of `:sources` is one origin within the corpus: a site to fetch, a rep
 
 ### What the engine reads from `:config`
 
-The engine does not interpret `:config` in general; a key it does not know is kept, not rejected. Two keys it does read, for a source published as one archive per version:
+The engine does not interpret `:config` in general; a key it does not know is kept, not rejected. Three keys it does read, for a source published as one archive per version:
 
 | Key | Meaning |
 |:---|:---|
 | `:version-path` | The path from `:base-url` to one version's directory, with the literal text `{version}` where the version string goes. |
 | `:archive` | The archive's file name inside that directory. |
+| `:parser` | The function that turns one fetched archive into documents, as a namespace-qualified symbol, e.g. `fhir.parsers.spec/documents`. Without it the source is fetched but never parsed. |
 
 `liesl.fetch/fetch-archive!` builds the URL as `:base-url` + `:version-path` with `{version}` replaced + `:archive`, and stores the download at `<archives directory>/<corpus>/<source name>/<version>/<archive>`. So for the FHIR specification, version `R4`:
 
@@ -57,6 +58,12 @@ https://hl7.org/fhir/  +  R4/  +  fhir-spec.zip  ->  https://hl7.org/fhir/R4/fhi
 ```
 
 `{version}` is plain text, replaced by a string substitution -- nothing checks that it is present, so a `:version-path` without it gives every version the same URL. Spell it exactly `{version}`.
+
+### The parser
+
+`liesl.parse` resolves the `:parser` symbol by name, loading its namespace from `corpora/` on the classpath, and calls it once per version with three arguments: the archive file on disk, the version string, and the URL prefix `:base-url` + `:version-path` with `{version}` replaced, e.g. `https://hl7.org/fhir/R4/`. It must return a sequence of maps, each `{:url <string, unique across the corpus> :title <string or nil> :body <string>}`; the engine adds the source's `:kind` and the version and writes each as a `document` row through `liesl.document/upsert!` (see `schema.md`). Return the whole sequence rather than a lazy one that still reads the archive: the engine writes the rows after the call returns.
+
+`clj -X:parse :corpus fhir`, optionally `:versions '["R4"]'`, runs this for every source naming a parser. It refuses a version whose archive is not on disk -- `<source name> <version> has not been fetched: no <file>` -- so `clj -X:fetch` comes first, and a symbol that names nothing -- `<source name> config names a parser that does not exist: <symbol>`.
 
 ## What goes wrong, and what it says
 
@@ -94,7 +101,9 @@ Every failure is an exception whose message says what was wrong and whose data s
    ;; path + archive. A published version never changes, so once fetched its
    ;; next_fetch moves years out; only the current version is worth revisiting.
    :config   {:version-path "{version}/"
-              :archive      "fhir-spec.zip"}}
+              :archive      "fhir-spec.zip"
+              ;; Turns one fetched archive into document maps; resolved by name.
+              :parser       fhir.parsers.spec/documents}}
 
   {:name     "repo"
    :kind     "source"
@@ -103,8 +112,8 @@ Every failure is an exception whose message says what was wrong and whose data s
    :config   {:clone :shallow}}]}
 ```
 
-The `repo` source shows a config the engine does not read: `:clone :shallow` is kept in the row as written, for whatever handles that kind of source. It is not an error, and it is not an archive source, so `fetch-archive!` would refuse it with `repo config needs :version-path`.
+The `repo` source shows a config the engine does not read: `:clone :shallow` is kept in the row as written, for whatever handles that kind of source. It is not an error, and it is not an archive source, so `fetch-archive!` would refuse it with `repo config needs :version-path`, and `clj -X:parse` skips it because it names no parser.
 
 ## Writing a second corpus
 
-Make `corpora/<name>/`, write `corpus.edn` with `:corpus "<name>"`, at least one source with the three required keys, and `:versions` if the subject has them. Load it in a REPL with `(liesl.corpus/load "<name>")`; the exception, if any, names the problem. Then `(liesl.corpus/upsert-sources! conn (liesl.corpus/load "<name>"))` writes its source rows.
+Make `corpora/<name>/`, write `corpus.edn` with `:corpus "<name>"`, at least one source with the three required keys, and `:versions` if the subject has them. Load it in a REPL with `(liesl.corpus/load "<name>")`; the exception, if any, names the problem. Then `(liesl.corpus/upsert-sources! conn (liesl.corpus/load "<name>"))` writes its source rows. For an archive source, write its parser under `corpora/<name>/parsers/` with the three-argument shape above and name it in `:config` as `:parser`; then `clj -X:fetch :corpus <name>` and `clj -X:parse :corpus <name>` fill the `document` table.
