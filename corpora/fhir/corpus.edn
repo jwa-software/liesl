@@ -12,7 +12,7 @@
    :base-url "https://hl7.org/fhir/"
    ;; Each version is published whole as one archive at base-url + version
    ;; path + archive. A published version never changes, so once fetched its
-   ;; next_fetch moves years out; only the current version is worth revisiting.
+   ;; `next_fetch` moves years out; only the current version is worth revisiting.
    :config   {:version-path "{version}/"
               :archive      "fhir-spec.zip"
               ;; Turns one fetched archive into document maps; resolved by name.
