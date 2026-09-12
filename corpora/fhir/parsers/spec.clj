@@ -9,10 +9,11 @@
   the same page rendered as JSON, XML or Turtle; only the prose pages are worth
   keeping. Every prose page has the same skeleton around one content column,
   and the same boilerplate inside it, in all four versions."
-  (:require [clojure.string :as str])
-  (:import [java.util.zip ZipEntry ZipFile]
-           [org.jsoup Jsoup]
-           [org.jsoup.nodes Document Element TextNode]
+  (:require [clojure.java.io :as io]
+            [clojure.string  :as str])
+  (:import [java.util.zip    ZipEntry ZipFile]
+           [org.jsoup        Jsoup]
+           [org.jsoup.nodes  Document Element TextNode]
            [org.jsoup.select NodeVisitor]))
 
 ;; The directory each version keeps its pages under, as a prefix of the entry
@@ -155,7 +156,9 @@
   [^ZipFile archive ^String version ^String url-prefix]
   (let [dir (get page-dirs version)]
        (when-not dir
-         (throw (ex-info (format "Unknown FHIR version %s; known: %s" version (str/join " " (keys page-dirs)))
+         (throw (ex-info (format "Unknown FHIR version %s; known: %s"
+                                 version
+                                 (str/join " " (keys page-dirs)))
                          {:version version})))
        (into []
              (keep #(zip-entry->page % dir url-prefix))
@@ -194,3 +197,23 @@
          {:url   (:url page)
           :title (page-title doc column)
           :body  (block-text column)})))
+
+(defn documents
+  "Every document one version's archive yields. This is the function
+  corpus.edn names as the spec source's :parser.
+
+  archive-file  the fhir-spec.zip on disk
+  version       which version it is, e.g. \"R4\"; must be in page-dirs
+  url-prefix    the version's base URL, e.g. \"https://hl7.org/fhir/R4/\"
+
+  Returns
+  [<document, as page->document describes it>
+   ...one per page that has a content column, in archive order...]
+
+  Eager on purpose: the archive is closed when this returns, and a lazy
+  sequence read after that would fail."
+  [archive-file ^String version ^String url-prefix]
+  (with-open [archive (ZipFile. (io/file archive-file))]
+    (into []
+          (keep #(page->document % (page-html archive %)))
+          (pages archive version url-prefix))))

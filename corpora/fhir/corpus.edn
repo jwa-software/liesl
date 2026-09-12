@@ -14,7 +14,9 @@
    ;; path + archive. A published version never changes, so once fetched its
    ;; next_fetch moves years out; only the current version is worth revisiting.
    :config   {:version-path "{version}/"
-              :archive      "fhir-spec.zip"}}
+              :archive      "fhir-spec.zip"
+              ;; Turns one fetched archive into document maps; resolved by name.
+              :parser       fhir.parsers.spec/documents}}
 
   {:name     "repo"
    :kind     "source"
