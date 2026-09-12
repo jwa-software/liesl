@@ -2,7 +2,7 @@
 
 (ns liesl.index
   "Keeps the Lucene index level with the document table. The table is the
-  truth and the index is derived from it: a row whose indexed_at is null is
+  truth and the index is derived from it: a row whose `indexed_at` is null is
   waiting to be written, and writing it sets the column."
   (:require [clojure.java.io      :as io]
             [liesl.db             :as db]
@@ -23,11 +23,11 @@
 (defn- document->lucene
   "One document row as the Lucene document that stands for it.
 
-  row  {:id :url :kind :version :title :body}, as unindexed! reads it
+  row  {:id :url :kind :version :title :body}, as `unindexed!` reads it
 
-  Returns a Document: url, kind and version as exact-match fields, title and
-  body analysed for search, every field stored so a hit can be shown without
-  the database. A nil title or version is left out."
+  Returns a `Document`: `url`, `kind` and `version` as exact-match fields,
+  `title` and `body` analysed for search, every field stored so a hit can be
+  shown without the database. A nil `title` or `version` is left out."
   ^Document [{:keys [id url kind version title body]}]
   (let [doc (Document.)]
        (.add doc (StoredField. "id"   (long id)))
@@ -72,9 +72,9 @@
 ;; ---- close, the unindexed rows, the command ----
 
 (defn index-dir
-  "The directory the index lives in: data/index.
+  "The directory the index lives in: `data/index`.
 
-  Returns it as a File."
+  Returns it as a `File`."
   ^File []
   (io/file (db/data-dir) index-dir-name))
 
@@ -84,17 +84,17 @@
 
   dir  the index directory, created if missing
 
-  Returns {:directory <the FSDirectory> :writer <the IndexWriter>}, for close."
+  Returns {:directory <the FSDirectory> :writer <the IndexWriter>}, for `close`."
   [dir]
   (let [directory (FSDirectory/open (.toPath (io/file dir)))
         writer    (IndexWriter. directory (IndexWriterConfig. (StandardAnalyzer.)))]
        {:directory directory :writer writer}))
 
 (defn close
-  "Close what open returned, committing what is pending and releasing the
+  "Close what `open` returned, committing what is pending and releasing the
   write lock.
 
-  opened  what open returned
+  opened  what `open` returned
 
   Returns nil."
   [{:keys [^IndexWriter writer ^FSDirectory directory]}]
@@ -102,15 +102,15 @@
   (.close directory))
 
 (defn index-unindexed!
-  "Write every row whose indexed_at is null into the index and mark it. A row
-  goes in with updateDocument on its url, so a changed row replaces its
-  earlier copy instead of joining it.
+  "Write every row whose `indexed_at` is null into the index and mark it. A
+  row goes in with `updateDocument` on its `url`, so a changed row replaces
+  its earlier copy instead of joining it.
 
   conn    an open connection
-  opened  what open returned
+  opened  what `open` returned
 
   Returns how many rows were written. The marking comes after Lucene's
-  commit, so a failure between the two leaves the rows on the queue rather
+  `commit`, so a failure between the two leaves the rows on the queue rather
   than off it."
   [conn {:keys [^IndexWriter writer]}]
   (let [rows (unindexed! conn)]
@@ -123,9 +123,9 @@
        (count rows)))
 
 (defn ^:exec-fn index
-  "Bring the index under data/index level with the document table.
+  "Bring the index under `data/index` level with the `document` table.
 
-  Prints how many rows were written. Returns nil, because -X discards it."
+  Prints how many rows were written. Returns nil, because `-X` discards it."
   [_]
   (with-open [conn (db/get-connection)]
     (let [opened (open (index-dir))]
