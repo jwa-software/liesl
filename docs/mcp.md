@@ -10,12 +10,13 @@ The server answers from the index under `data/`, so the corpus has to be fetched
 
 ```
 clj -X:migrate
-clj -X:fetch :corpus fhir :versions '["R4"]'
-clj -X:parse :corpus fhir :versions '["R4"]'
+clj -X:fetch :corpus fhir
+clj -X:parse :corpus fhir
+clj -X:link :corpus fhir
 clj -X:index
 ```
 
-`clj -X:search :q birthTime :version R4 :limit 3` checks the result from the shell without Claude Code in the way.
+`:versions '["R4"]'` on the fetch and the parse limits them to one version, about 210 MB instead of 1.2 GB. `clj -X:search :q birthTime :version R4 :limit 3` checks the result from the shell without Claude Code in the way.
 
 ## Opt-in: one session at a time
 
@@ -61,6 +62,8 @@ claude mcp add liesl -- clojure -M:mcp
 `search` takes `q`, the question in Lucene syntax (bare words, quoted phrases, `field:value`), and optionally `version` (`STU3`, `R4`, `R4B`, `R5`), `kind` (`spec`) and `limit` (10 when absent). Each hit comes back as three lines: the page's URL, its version and title, and the passage that matched. A question Lucene cannot parse comes back as an error result with the parser's message.
 
 `get` takes `url`, as a search hit gave it, and optionally `limit`, the most characters of the page to return (20,000 when absent). It returns the citation, the URL on the first line and the version and title on the second, then a blank line and the page's text as it was indexed, one line per heading, paragraph, list item or table cell. A page longer than the limit is cut there and ends with a line saying `[cut at 20000 of 1839001 characters]`. An unknown URL is an error result naming it.
+
+`related` takes `url` and returns the same page in the other published versions, one citation per counterpart: its URL, then its version and title. A page that exists in one version only answers `No other versions.`, which is itself an answer: the R4 `birthTime` extension has counterparts in STU3 and R4B and none in R5, because R5 moved extensions out of the core specification. The counterparts come from the `link` table, which `clj -X:link` fills; without that step every page reports no other versions. Unlike the index, the edges are read from the database per call, so a `clj -X:link` while the server runs is seen at once.
 
 ## Two things to know
 

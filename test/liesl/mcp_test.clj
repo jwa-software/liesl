@@ -2,7 +2,8 @@
 
 (ns liesl.mcp-test
   "The server on in-memory pipes instead of stdin and stdout, driven with the
-  same JSON-RPC lines a client sends, over an index of three small pages."
+  same JSON-RPC lines a client sends, over an index of three small pages and
+  the edges between them."
   (:require [clojure.java.io :as io]
             [clojure.string  :as str]
             [clojure.test    :refer [deftest is]]
@@ -10,15 +11,21 @@
             [liesl.db        :as db]
             [liesl.document  :as document]
             [liesl.index     :as index]
+            [liesl.link      :as link]
             [liesl.mcp       :as mcp])
   (:import [io.modelcontextprotocol.json McpJsonDefaults McpJsonMapper]
            [java.io                     BufferedReader InputStreamReader PipedInputStream PipedOutputStream PrintStream]
            [java.nio.file               Files]
            [java.nio.file.attribute     FileAttribute]))
 
+;; Published by version, so the linker can pair the pages.
 (def ^:private one-source
-  {:corpus  "test"
-   :sources [{:name "pages" :kind "spec" :base-url "http://127.0.0.1/"}]})
+  {:corpus   "test"
+   :versions ["R4" "R5"]
+   :sources  [{:name     "pages"
+               :kind     "spec"
+               :base-url "http://127.0.0.1/"
+               :config   {:version-path "{version}/" :archive "pages.zip"}}]})
 
 (def ^:private patient
   {:url     "http://127.0.0.1/R4/patient.html"
@@ -81,8 +88,10 @@
   "The three pages indexed, the server started on two pipes, then stopped
   and cleaned up afterwards.
 
-  f  the test body, given a function that sends one JSON-RPC message and
-     returns the reply as a map, or nil for a notification
+  f  the test body, given {:send! <fn> :burst! <fn>}: send! sends one
+     JSON-RPC message and returns the reply as a map, or nil for a
+     notification; burst! sends several without waiting and returns their
+     replies in the order they arrive
 
   Returns what f returns."
   [f]
@@ -90,25 +99,32 @@
     (fn [conn]
         (with-temp-dir
           (fn [dir]
-              (let [source-id (:id (first (corpus/upsert-sources! conn one-source)))]
+              (let [source (first (corpus/upsert-sources! conn one-source))]
                    (doseq [page [patient birth-time patient-r5]]
-                     (document/upsert! conn source-id page))
+                     (document/upsert! conn (:id source) page))
                    (let [writer (index/open dir)]
                         (try
                           (index/index-unindexed! conn writer)
                           (finally
-                            (index/close writer)))))
+                            (index/close writer))))
+                   (link/link-versions! conn {:source source :versions ["R4" "R5"]}))
               (let [to-server   (PipedOutputStream.)
                     from-server (PipedOutputStream.)
-                    running     (mcp/start dir (PipedInputStream. to-server) from-server)
+                    running     (mcp/start dir conn (PipedInputStream. to-server) from-server)
                     out         (PrintStream. to-server true)
                     in          (BufferedReader. (InputStreamReader. (PipedInputStream. from-server)))
+                    reply!      (fn []
+                                    (.readValue mapper (str (.readLine in)) java.util.Map))
                     send!       (fn [message]
                                     (.println out (.writeValueAsString mapper message))
                                     (when (contains? message "id")
-                                      (.readValue mapper (str (.readLine in)) java.util.Map)))]
+                                      (reply!)))
+                    burst!      (fn [messages]
+                                    (doseq [message messages]
+                                      (.println out (.writeValueAsString mapper message)))
+                                    (vec (repeatedly (count messages) reply!)))]
                    (try
-                     (f send!)
+                     (f {:send! send! :burst! burst!})
                      (finally
                        (.close out)
                        (mcp/stop running)))))))))
@@ -131,7 +147,7 @@
   "One call of a tool, after the handshake.
 
   send!      from with-server
-  tool       the tool's name, \"search\" or \"get\"
+  tool       the tool's name: \"search\", \"get\" or \"related\"
   arguments  the tool's arguments, string keys
 
   Returns the result map: content, a list of {type text}, and isError."
@@ -149,18 +165,18 @@
   [result]
   (mapv #(get % "text") (get result "content")))
 
-(deftest the-server-names-itself-and-lists-its-two-tools
+(deftest the-server-names-itself-and-lists-its-three-tools
   (with-server
-    (fn [send!]
+    (fn [{:keys [send!]}]
         (let [reply (initialize! send!)
               tools (get-in (send! {"jsonrpc" "2.0" "id" 2 "method" "tools/list"}) ["result" "tools"])
               required (into {} (map (fn [tool] [(get tool "name") (vec (get-in tool ["inputSchema" "required"]))])) tools)]
              (is (= "liesl" (get-in reply ["result" "serverInfo" "name"])) "the server says who it is")
-             (is (= {"search" ["q"] "get" ["url"]} required)                "two tools, each with one required argument")))))
+             (is (= {"search" ["q"] "get" ["url"] "related" ["url"]} required) "three tools, each with one required argument")))))
 
 (deftest a-call-returns-one-text-block-per-hit-best-first
   (with-server
-    (fn [send!]
+    (fn [{:keys [send!]}]
         (initialize! send!)
         (let [result (call! send! "search" {"q" "birthTime"})
               blocks (texts result)]
@@ -172,7 +188,7 @@
 
 (deftest a-version-argument-narrows-the-call
   (with-server
-    (fn [send!]
+    (fn [{:keys [send!]}]
         (initialize! send!)
         (let [blocks (texts (call! send! "search" {"q" "birthTime" "version" "R4" "limit" 5}))]
              (is (= 2 (count blocks))                                      "the R5 page is out")
@@ -180,7 +196,7 @@
 
 (deftest a-call-without-a-question-is-refused-by-the-schema
   (with-server
-    (fn [send!]
+    (fn [{:keys [send!]}]
         (initialize! send!)
         (let [result (call! send! "search" {"version" "R4"})]
              (is (true? (get result "isError")) "the SDK checks the schema before the handler runs")
@@ -188,7 +204,7 @@
 
 (deftest a-question-lucene-cannot-parse-is-an-error-result-not-a-crash
   (with-server
-    (fn [send!]
+    (fn [{:keys [send!]}]
         (initialize! send!)
         (let [result (call! send! "search" {"q" "\"unbalanced"})]
              (is (true? (get result "isError")) "an error result, and the server is still up")
@@ -197,13 +213,13 @@
 
 (deftest no-hits-says-so
   (with-server
-    (fn [send!]
+    (fn [{:keys [send!]}]
         (initialize! send!)
         (is (= ["No hits."] (texts (call! send! "search" {"q" "haemoglobin"}))) "one block, saying nothing was found"))))
 
 (deftest get-returns-the-whole-page-with-its-citation-first
   (with-server
-    (fn [send!]
+    (fn [{:keys [send!]}]
         (initialize! send!)
         (let [result (call! send! "get" {"url" (:url patient)})]
              (is (false? (get result "isError")) "a known page is not an error")
@@ -212,7 +228,7 @@
 
 (deftest get-cuts-a-long-page-at-the-limit-and-says-so
   (with-server
-    (fn [send!]
+    (fn [{:keys [send!]}]
         (initialize! send!)
         (let [text (first (texts (call! send! "get" {"url" (:url patient) "limit" 12})))]
              (is (str/includes? text (str "\n\n" (subs (:body patient) 0 12) "\n")) "the first twelve characters of the body")
@@ -220,8 +236,49 @@
 
 (deftest get-of-an-unknown-url-is-an-error-result
   (with-server
-    (fn [send!]
+    (fn [{:keys [send!]}]
         (initialize! send!)
         (let [result (call! send! "get" {"url" "http://127.0.0.1/R4/nowhere.html"})]
              (is (true? (get result "isError")) "an error result, and the server is still up")
+             (is (= ["No page at http://127.0.0.1/R4/nowhere.html"] (texts result)) "naming the url")))))
+
+(deftest related-lists-the-same-page-in-the-other-versions
+  (with-server
+    (fn [{:keys [send!]}]
+        (initialize! send!)
+        (let [result (call! send! "related" {"url" (:url patient)})]
+             (is (false? (get result "isError")) "a known page is not an error")
+             (is (= [(str (:url patient-r5) "\nR5 | " (:title patient-r5))] (texts result))
+                 "the R5 page, as a citation: url, then version and title")))))
+
+(deftest related-of-a-page-in-one-version-only-says-so
+  (with-server
+    (fn [{:keys [send!]}]
+        (initialize! send!)
+        (is (= ["No other versions."] (texts (call! send! "related" {"url" (:url birth-time)})))
+            "the extension exists in R4 alone"))))
+
+(deftest calls-sent-together-are-all-answered
+  ;; The SDK's outbound queue drops an answer when two are emitted at once
+  ;; from its thread pool; the server runs handlers one after another on the
+  ;; reading thread instead, and this is the test that would catch a return
+  ;; to the default.
+  (with-server
+    (fn [{:keys [send! burst!]}]
+        (initialize! send!)
+        (let [call    (fn [id tool arguments]
+                          {"jsonrpc" "2.0" "id" id "method" "tools/call"
+                           "params"  {"name" tool "arguments" arguments}})
+              replies (burst! [(call 10 "related" {"url" (:url patient)})
+                               (call 11 "get"     {"url" (:url birth-time)})
+                               (call 12 "search"  {"q" "birthTime"})])]
+             (is (= #{10 11 12} (set (map #(get % "id") replies)))          "three answers for three calls")
+             (is (every? #(false? (get-in % ["result" "isError"])) replies) "none of them an error")))))
+
+(deftest related-of-an-unknown-url-is-an-error-result
+  (with-server
+    (fn [{:keys [send!]}]
+        (initialize! send!)
+        (let [result (call! send! "related" {"url" "http://127.0.0.1/R4/nowhere.html"})]
+             (is (true? (get result "isError")) "an error result")
              (is (= ["No page at http://127.0.0.1/R4/nowhere.html"] (texts result)) "naming the url")))))
