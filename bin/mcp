@@ -1,0 +1,8 @@
+#!/bin/sh
+# Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
+
+# Start the MCP server from any directory. `clojure` looks for deps.edn only
+# in its working directory, so this moves into the clone first; `exec` then
+# replaces the shell with the server, so the client's signals reach it
+# directly and no shell is left behind.
+cd "$(dirname "$0")/.." && exec clojure -M:mcp
