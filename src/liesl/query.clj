@@ -62,8 +62,8 @@
                            BooleanClause$Occur/FILTER))
        (.build builder)))
 
-;; ---- Public, each built on the one above: open and close, the hits, the
-;; ---- command ----
+;; ---- Public, each built on the one above: open and close, the hits, one
+;; ---- page, the command ----
 
 (defn open
   "Open the index for reading. What it sees is the index as of now; rows
@@ -129,6 +129,29 @@
                        :snippet (or snippet "")}))
              (.-scoreDocs found)
              snippets)))
+
+(defn page
+  "Fetch one page whole, by its URL, from what the index stored.
+
+  opened  what `open` returned
+  url     the page's url, exactly as `hits` returns it
+
+  Returns
+  {:url     <string>
+   :title   <string, or nil>
+   :version <string, or nil>
+   :kind    <string>
+   :body    <string, the whole text as indexed>}
+  nil     no page has that url; a page parsed but not yet indexed counts as none"
+  [{:keys [^IndexSearcher searcher ^DirectoryReader reader]} ^String url]
+  (let [found (.search searcher (TermQuery. (Term. "url" url)) 1)]
+       (when-let [hit (first (.-scoreDocs found))]
+         (let [doc (.document (.storedFields reader) (.-doc ^ScoreDoc hit))]
+              {:url     (.get doc "url")
+               :title   (.get doc "title")
+               :version (.get doc "version")
+               :kind    (.get doc "kind")
+               :body    (.get doc "body")}))))
 
 (defn ^:exec-fn search
   "Ask the index a question from the shell. `clj -X:search :q birthTime
