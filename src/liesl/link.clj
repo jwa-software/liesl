@@ -1,10 +1,10 @@
 ;; Copyright (c) 2026 Junzhe Wang, licensed under the MIT License.
 
 (ns liesl.link
-  "Writes the edges between documents: for now, which pages are one page in
-  different versions. The engine knows no corpus; it knows from `corpus.edn`
-  that a source published by version keeps each version's pages under a URL
-  of its own, and that what follows that URL names the page."
+  "Writes and reads the edges between documents: for now, which pages are one
+  page in different versions. The engine knows no corpus; it knows from
+  `corpus.edn` that a source published by version keeps each version's pages
+  under a URL of its own, and that what follows that URL names the page."
   (:require [clojure.edn          :as edn]
             [clojure.string       :as str]
             [liesl.corpus         :as corpus]
@@ -107,7 +107,8 @@
                          ::jdbc/update-count))
                  pairs))))
 
-;; ---- Public, each built on the one above: a source, a corpus, the command ----
+;; ---- Public, each built on the one above: a source, a corpus, the command;
+;; ---- then reading the edges back ----
 
 (defn link-versions!
   "Pair every page of a source with the same page in its other versions, and
@@ -153,3 +154,27 @@
   (with-open [conn (db/get-connection)]
     (doseq [[source-name new-edges] (link-corpus! conn {:definition (corpus/load (name corpus))})]
       (println source-name new-edges "new edges"))))
+
+(defn related
+  "The pages that are one page in other versions: what `version-of` edges
+  reach from a page, in either direction.
+
+  conn  an open connection
+  url   the page's url
+
+  Returns
+  [{:url <string> :version <string, or nil> :title <string, or nil>}
+   ...one per counterpart, in no particular order...]
+  []   the page exists and has no counterpart
+  nil  no page has that url"
+  [conn url]
+  (when-let [{:keys [id]} (jdbc/execute-one! conn
+                                             ["SELECT id FROM document WHERE url = ?" url]
+                                             {:builder-fn rs/as-unqualified-lower-maps})]
+    (jdbc/execute! conn
+                   [(str "SELECT d.url, d.version, d.title "
+                         "FROM link l "
+                         "JOIN document d ON d.id = CASE WHEN l.from_id = ? THEN l.to_id ELSE l.from_id END "
+                         "WHERE l.kind = ? AND (l.from_id = ? OR l.to_id = ?)")
+                    id version-of id id]
+                   {:builder-fn rs/as-unqualified-lower-maps})))
