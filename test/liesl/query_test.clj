@@ -144,6 +144,12 @@
     (fn [opened]
         (is (= [] (query/hits opened {:q "haemoglobin"})) "a word no page has"))))
 
+(deftest a-page-comes-back-whole-by-its-url
+  (with-index
+    (fn [opened]
+        (is (= patient (query/page opened (:url patient)))  "every stored field, as it was written")
+        (is (nil? (query/page opened "http://127.0.0.1/R4/nowhere.html")) "no page, nil"))))
+
 (deftest a-question-lucene-cannot-parse-is-refused
   (with-index
     (fn [opened]

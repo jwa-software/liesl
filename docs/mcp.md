@@ -56,9 +56,11 @@ claude mcp add liesl -- clojure -M:mcp
 
 `claude mcp list` shows it; `claude mcp remove liesl` takes it out again. Registration keeps only the command, so a change to liesl's code is picked up the next time Claude Code starts.
 
-## The tool
+## The tools
 
 `search` takes `q`, the question in Lucene syntax (bare words, quoted phrases, `field:value`), and optionally `version` (`STU3`, `R4`, `R4B`, `R5`), `kind` (`spec`) and `limit` (10 when absent). Each hit comes back as three lines: the page's URL, its version and title, and the passage that matched. A question Lucene cannot parse comes back as an error result with the parser's message.
+
+`get` takes `url`, as a search hit gave it, and optionally `limit`, the most characters of the page to return (20,000 when absent). It returns the citation, the URL on the first line and the version and title on the second, then a blank line and the page's text as it was indexed, one line per heading, paragraph, list item or table cell. A page longer than the limit is cut there and ends with a line saying `[cut at 20000 of 1839001 characters]`. An unknown URL is an error result naming it.
 
 ## Two things to know
 
