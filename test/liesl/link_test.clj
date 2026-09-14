@@ -113,6 +113,18 @@
              (is (= 0 (link/link-versions! conn {:source pages :versions ["STU3" "R4" "R5"]})) "every pair is already there")
              (is (= 3 (count (select-edges! conn)))                                            "and nothing was duplicated")))))
 
+(deftest related-lists-the-other-versions-of-a-page
+  (with-temp-db
+    (fn [conn]
+        (let [pages (insert-pages! conn)]
+             (link/link-versions! conn {:source pages :versions ["STU3" "R4" "R5"]})
+             (is (= #{{:url "http://127.0.0.1/STU3/patient.html" :version "STU3" :title "patient.html"}
+                      {:url "http://127.0.0.1/R5/patient.html"   :version "R5"   :title "patient.html"}}
+                    (set (link/related conn "http://127.0.0.1/R4/patient.html")))
+                 "both other versions, whichever side of the edge they sit on")
+             (is (= [] (link/related conn "http://127.0.0.1/R4/only-in-r4.html")) "a page with no counterpart gives an empty vector")
+             (is (nil? (link/related conn "http://127.0.0.1/R4/nowhere.html"))   "an unknown url gives nil")))))
+
 (deftest a-corpus-links-its-versioned-sources-and-skips-the-rest
   (with-temp-db
     (fn [conn]
