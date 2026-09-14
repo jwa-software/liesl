@@ -202,7 +202,8 @@
   (Thread/sleep (long *pause-ms*)))
 
 ;; ---- Public, each built on the one above: where archives live, a request,
-;; ---- where one archive is, an archive, a version list, a corpus, the command ----
+;; ---- where a version lives, where one archive is, an archive, a version
+;; ---- list, a corpus, the command ----
 
 (defn archives-dir
   "The directory all archives live under: `data/archives`.
@@ -251,6 +252,22 @@
          (select-keys received [:status :body :file])
          {:status status})))
 
+(defn version-url
+  "Where one version of a source lives on the server: the base URL plus the
+  version path with `{version}` filled in. Every page of that version is
+  under it, and so is its archive.
+
+  source   a source row, as `upsert-sources!` returns it
+  version  which version, e.g. \"R4\"
+
+  Returns e.g. \"https://hl7.org/fhir/R4/\". A config without :version-path is
+  an `ex-info` naming the source."
+  ^String [source version]
+  (let [{:keys [version-path]} (some-> (:config source) edn/read-string)]
+       (when-not version-path (throw (ex-info (format "%s config needs :version-path" (:name source))
+                                              {})))
+       (str (:base_url source) (str/replace version-path "{version}" version))))
+
 (defn archive-location
   "Where one version of a source's archive is, on the server and on disk.
 
@@ -265,15 +282,13 @@
 
   A config without :version-path or :archive is an `ex-info` naming the source."
   [{:keys [source version dir]}]
-  (let [{:keys [version-path archive]} (some-> (:config source) edn/read-string)]
-       (when-not version-path (throw (ex-info (format "%s config needs :version-path" (:name source))
-                                              {})))
-       (when-not archive      (throw (ex-info (format "%s config needs :archive"      (:name source))
-                                              {})))
-       (let [url-prefix (str (:base_url source) (str/replace version-path "{version}" version))]
-            {:url-prefix url-prefix
-             :url        (str     url-prefix archive)
-             :file       (io/file dir (:corpus source) (:name source) version archive)})))
+  (let [{:keys [archive]} (some-> (:config source) edn/read-string)
+        url-prefix        (version-url source version)]
+       (when-not archive (throw (ex-info (format "%s config needs :archive" (:name source))
+                                         {})))
+       {:url-prefix url-prefix
+        :url        (str     url-prefix archive)
+        :file       (io/file dir (:corpus source) (:name source) version archive)}))
 
 (defn fetch-archive!
   "Fetch one version of a source's archive into dir, conditionally.

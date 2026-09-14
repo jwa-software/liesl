@@ -76,6 +76,9 @@
   ;; clj -X:parse :corpus fhir :versions '["R4"]'    one version only
   :parse        {:exec-fn liesl.parse/parse       :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}
 
+  ;; clj -X:link :corpus fhir                        write the version-of edges between a corpus's pages
+  :link         {:exec-fn liesl.link/link         :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}
+
   ;; clj -X:index                                    write every document row not yet in the index
   :index        {:exec-fn liesl.index/index       :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}
 
